@@ -13,6 +13,7 @@ DIRECTIONS = {
         "registrations": [
             {"city_code": "37390", "node_id": "CGB2142"},  # 칠곡군
             {"city_code": "37050", "node_id": "GMB2142"},  # 구미시
+            {"city_code": "22", "node_id": "DGB7181001000"},  # 대구광역시
         ],
     },
     # 학명리 정류소 중 "학명리 건너2"에서 수집 = 동명면 쪽으로 가는 버스
