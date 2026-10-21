@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
 
 from collector.models import ArrivalObservation
 
@@ -30,10 +29,10 @@ def resolve_arrivals(
     Logic:
     1. Track "open candidates" per routeid (last observed time, ETA, route number)
     2. For each snapshot:
-       - Update candidates that appear in this snapshot
        - For candidates that disappear (not in this snapshot):
          * If last ETA <= noise_eta_threshold_min: record as confirmed arrival
          * Otherwise: discard as noise
+       - Update candidates that appear in this snapshot
     3. Don't record candidates still open at the end of snapshots
 
     Args:
@@ -41,7 +40,7 @@ def resolve_arrivals(
         noise_eta_threshold_min: ETA threshold to distinguish real arrivals from noise
 
     Returns:
-        List of confirmed arrivals in chronological order
+        List of confirmed arrivals sorted by arrival_time in chronological order
     """
     # Track open candidates: routeid -> (polled_at, eta_min, routeno)
     open_candidates: dict[str, tuple[datetime, float, str]] = {}
@@ -79,4 +78,6 @@ def resolve_arrivals(
     # Don't record candidates still open at the end of snapshots
     # (they are already not in confirmed_arrivals)
 
+    # Sort by arrival time to ensure deterministic output
+    confirmed_arrivals.sort(key=lambda a: a.arrival_time)
     return confirmed_arrivals

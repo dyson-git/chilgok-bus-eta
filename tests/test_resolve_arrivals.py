@@ -35,3 +35,24 @@ def test_candidate_still_open_at_end_of_day_is_not_recorded():
 
 def test_empty_snapshots_produce_no_arrivals():
     assert resolve_arrivals([]) == []
+
+
+def test_multiple_routes_disappearing_same_snapshot_are_sorted_by_arrival_time():
+    # Two routes with different ETAs disappearing in the same snapshot
+    # should be returned in chronological order by arrival_time,
+    # not in arbitrary set iteration order.
+    snapshots = [
+        PollSnapshot(dt(13, 0), [
+            ArrivalObservation("R1", "250", 5.0),
+            ArrivalObservation("R2", "251", 4.0),
+        ]),
+        PollSnapshot(dt(13, 5), []),
+    ]
+    result = resolve_arrivals(snapshots)
+    # R2 arrives at 13:04 (13:00 + 4 min), R1 arrives at 13:05 (13:00 + 5 min)
+    # Result must be sorted by arrival_time
+    assert len(result) == 2
+    assert result[0].arrival_time == dt(13, 4)
+    assert result[0].routeid == "R2"
+    assert result[1].arrival_time == dt(13, 5)
+    assert result[1].routeid == "R1"
