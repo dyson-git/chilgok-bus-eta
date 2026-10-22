@@ -311,3 +311,23 @@ def test_route_cache_written_once_without_key(tmp_path, monkeypatch):
     assert "22:R" in json.loads(text) and "학명리" in text
     for form in (KEY, quote(KEY, safe=""), quote_plus(KEY)):
         assert form not in text
+
+
+def test_empty_route_stop_list_is_an_error_not_toward_false(tmp_path, monkeypatch):
+    monkeypatch.setattr("collector.poll.get_arrivals", _arrivals_by_node({
+        "N1": [ArrivalObservation("R", "93", 5.0)]}))
+    empty = {"response": {"header": {"resultCode": "00"}, "body": {"items": "", "totalCount": 0}}}
+
+    class Resp:
+        def json(self):
+            return empty
+
+    monkeypatch.setattr("collector.route_filter.requests.get", lambda *a, **k: Resp())
+    data = tmp_path / "data"
+    run_poll("k", _one_dir("N1"), dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
+    latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
+    assert latest["d"]["errors"] == [{"city_code": "22", "node_id": "N1", "route_id": "R",
+                                      "error": "TagoApiError: empty route stop list"}]
+    rec = _lines(data / "observations" / "d" / "2026-10-21.jsonl")[0]
+    assert all(o.get("toward") is not False for o in rec["observations"])
+    assert "22:R" not in json.loads((data / "route_cache.json").read_text(encoding="utf-8"))

@@ -107,10 +107,11 @@ def test_fetch_route_stops_errors(monkeypatch):
         fetch_route_stops("k", "22", "R1")
 
 
-def test_fetch_route_stops_empty_items(monkeypatch):
+def test_fetch_route_stops_empty_items_is_an_error(monkeypatch):
     empty = {"response": {"header": {"resultCode": "00"}, "body": {"items": "", "totalCount": 0}}}
     monkeypatch.setattr("collector.route_filter.requests.get", lambda *a, **k: FakeResp(empty))
-    assert fetch_route_stops("k", "22", "R1") == []
+    with pytest.raises(TagoApiError, match="empty route stop list"):
+        fetch_route_stops("k", "22", "R1")
 
 
 T0 = date(2026, 10, 21)
