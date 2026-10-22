@@ -1,0 +1,89 @@
+{
+  "hakmyeong": {
+    "polled_at": "2026-10-22T10:42:08+09:00",
+    "observations": [],
+    "errors": [
+      {
+        "city_code": "37390",
+        "node_id": "CGB2142",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "37050",
+        "node_id": "GMB2142",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "22",
+        "node_id": "DGB7181001000",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "37390",
+        "node_id": "CGB2141",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "37050",
+        "node_id": "GMB2141",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "22",
+        "node_id": "DGB3690003750",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "37390",
+        "node_id": "CGB4870",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "37390",
+        "node_id": "CGB4871",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "37050",
+        "node_id": "GMB4871",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "37100",
+        "node_id": "GYB369007000",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "22",
+        "node_id": "DGB7181007000",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "22",
+        "node_id": "DGB3690005830",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      }
+    ]
+  },
+  "dongmyeong": {
+    "polled_at": "2026-10-22T10:42:08+09:00",
+    "observations": [],
+    "errors": [
+      {
+        "city_code": "37390",
+        "node_id": "CGB2479",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "37050",
+        "node_id": "GMB2479",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      },
+      {
+        "city_code": "37100",
+        "node_id": "GYB369001900",
+        "error": "TagoApiError: TAGO API error: SERVICE_KEY_IS_NOT_REGISTERED_ERROR (code: 30)"
+      }
+    ]
+  }
+}
