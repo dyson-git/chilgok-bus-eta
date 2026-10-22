@@ -99,11 +99,12 @@ function renderCard(dir, res) {
   if (!res) return html + '<p class="note">확인 중…</p>';
   if (res.snapshotAt) html += '<p class="note">지금은 실시간 정보를 못 받아 ' + esc(res.snapshotAt) + ' 기록을 보여드려요</p>';
   var hasErr = res.errors > 0;
-  if (hasErr) html += '<div class="warn">일부 정보를 못 받았어요</div>';
+  if (hasErr && !res.observations.length) html += '<div class="warn">버스 정보를 다 받지 못했어요. 잠시 후 다시 확인해요</div>';
   if (res.observations.length) {
     html += res.observations.map(function (o) {
       return '<div class="bus"><span>' + esc(o.routeno) + '번</span><span class="when">' + esc(formatEta(o.eta_min)) + "</span></div>";
     }).join("");
+    if (hasErr) html += '<p class="note">일부 정류장 정보가 늦어요</p>';
   } else if (!hasErr) {
     html += '<div class="none">지금 오는 버스 없음</div>';
   }
@@ -204,17 +205,17 @@ if (typeof document !== "undefined") {
       return c && c.relayUrl && c.directions ? c : null;
     }
 
-    // 1순위: 중계 /all 한 번으로 전부. 실패하면 null.
+    // 1순위: 중계 /all 한 번으로 전부 (재시도는 중계가 한다). 12초 안에 못 받으면 null.
     function fetchAll(c) {
-      return retrying(function () {
-        return fetch(c.relayUrl + "/all", { cache: "no-store" }).then(function (r) {
-          if (!r.ok) throw new Error("HTTP " + r.status);
-          return r.json();
-        }).then(function (j) {
-          if (!j || !j.results) throw new Error("bad /all");
-          return parseAllResponse(j);
-        });
-      }, 2).catch(function () { return null; });
+      var ctl = new AbortController();
+      var timer = setTimeout(function () { ctl.abort(); }, 12000);
+      return fetch(c.relayUrl + "/all", { cache: "no-store", signal: ctl.signal }).then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      }).then(function (j) {
+        if (!j || !j.results) throw new Error("bad /all");
+        return parseAllResponse(j);
+      }).catch(function () { return null; }).then(function (m) { clearTimeout(timer); return m; });
     }
 
     // 2순위: 정류소별 /arrivals (동시 3개)

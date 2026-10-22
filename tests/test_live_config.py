@@ -40,4 +40,10 @@ def test_worker_allowlist_matches_collector_config():
 
 def test_worker_has_all_route():
     js = (ROOT / "worker" / "relay.js").read_text(encoding="utf-8")
-    assert '"/all"' in js and "Promise.allSettled" in js
+    assert '"/all"' in js and "fetchAllNodes" in js
+
+
+def test_worker_has_retry_timeout_and_cache():
+    js = (ROOT / "worker" / "relay.js").read_text(encoding="utf-8")
+    for marker in ("AbortSignal.timeout", "caches.default", "X-Relay-Cache", "MAX_INFLIGHT", "BACKOFF_MS", "BUDGET_MS"):
+        assert marker in js, marker

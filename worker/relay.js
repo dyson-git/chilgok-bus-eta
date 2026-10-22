@@ -32,17 +32,71 @@ function cors(origin) {
 
 const TAGO_URL = "https://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList";
 
-async function fetchNode(key, id) {
+const ATTEMPTS = 3;
+const ATTEMPT_TIMEOUT_MS = 3500;
+const BACKOFF_MS = [250, 500];
+const MAX_INFLIGHT = 6;
+const BUDGET_MS = 9000;
+const CACHE_TTL_S = 20;
+const CACHE_MIN_OK = 12;
+const CACHE_KEY = "https://chilgok-bus-relay.internal/all-cache-v1";
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// TAGO 게이트웨이는 HTTP 200 + 오류 봉투(returnReasonCode 04 등)로 실패를 돌려주는 일이 잦다.
+// "response" 키가 없거나 resultCode 가 00 이 아니면 실패로 보고 재시도한다.
+function isGoodTago(body) {
+  return !!(body && body.response && (!body.response.header || !body.response.header.resultCode || body.response.header.resultCode === "00"));
+}
+
+async function fetchNode(key, id, deadline) {
   const [city, node] = id.split(":");
   const q = new URLSearchParams({
     serviceKey: key.trim(), cityCode: city, nodeId: node, numOfRows: "100", _type: "json",
   });
-  const r = await fetch(TAGO_URL + "?" + q);
-  return await r.json();
+  let lastErr = "unknown";
+  for (let i = 0; i < ATTEMPTS; i++) {
+    if (i > 0) {
+      const wait = BACKOFF_MS[i - 1];
+      if (Date.now() + wait >= deadline) break;
+      await sleep(wait);
+    }
+    if (Date.now() >= deadline) break;
+    try {
+      const r = await fetch(TAGO_URL + "?" + q, { signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS) });
+      const body = await r.json();
+      if (isGoodTago(body)) return body;
+      const h = (body && body.OpenAPI_ServiceResponse && body.OpenAPI_ServiceResponse.cmmMsgHeader) || {};
+      lastErr = "TAGO " + (h.returnReasonCode || (body && body.response && body.response.header && body.response.header.resultCode) || "bad body");
+    } catch (e) {
+      lastErr = String((e && e.message) || e);
+    }
+  }
+  throw new Error(lastErr);
+}
+
+// 동시에 MAX_INFLIGHT 개까지만 TAGO 로 보낸다 (버스트에 게이트웨이가 약함).
+async function fetchAllNodes(key) {
+  const ids = [...ALLOWED_NODES];
+  const deadline = Date.now() + BUDGET_MS;
+  const results = {};
+  let next = 0;
+  async function worker() {
+    while (next < ids.length) {
+      const id = ids[next++];
+      try {
+        results[id] = { ok: true, body: await fetchNode(key, id, deadline) };
+      } catch (e) {
+        results[id] = { ok: false, error: String((e && e.message) || e) };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: MAX_INFLIGHT }, worker));
+  return results;
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin") || "";
     const headers = cors(origin);
@@ -55,32 +109,29 @@ export default {
       const node = url.searchParams.get("node") || "";
       if (!ALLOWED_NODES.has(city + ":" + node)) return new Response("stop not allowed", { status: 403, headers });
       if (!env.TAGO_SERVICE_KEY) return new Response("TAGO_SERVICE_KEY not set", { status: 500, headers });
-      const q = new URLSearchParams({
-        serviceKey: env.TAGO_SERVICE_KEY.trim(),
-        cityCode: city, nodeId: node, numOfRows: "100", _type: "json",
-      });
-      const r = await fetch("https://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList?" + q);
-      return new Response(await r.text(), {
-        status: r.status,
-        headers: { ...headers, "Content-Type": "application/json; charset=utf-8" },
-      });
+      const jsonHeaders = { ...headers, "Content-Type": "application/json; charset=utf-8" };
+      try {
+        const body = await fetchNode(env.TAGO_SERVICE_KEY, city + ":" + node, Date.now() + BUDGET_MS);
+        return new Response(JSON.stringify(body), { status: 200, headers: jsonHeaders });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: String((e && e.message) || e) }), { status: 502, headers: jsonHeaders });
+      }
     }
 
     if (url.pathname === "/all") {
       if (!env.TAGO_SERVICE_KEY) return new Response("TAGO_SERVICE_KEY not set", { status: 500, headers });
-      const ids = [...ALLOWED_NODES];
-      const settled = await Promise.allSettled(ids.map((id) => fetchNode(env.TAGO_SERVICE_KEY, id)));
-      const results = {};
-      ids.forEach((id, i) => {
-        const s = settled[i];
-        results[id] = s.status === "fulfilled"
-          ? { ok: true, body: s.value }
-          : { ok: false, error: String((s.reason && s.reason.message) || s.reason) };
-      });
-      return new Response(JSON.stringify({ fetched_at: new Date().toISOString(), results }), {
-        status: 200,
-        headers: { ...headers, "Content-Type": "application/json; charset=utf-8" },
-      });
+      const jsonHeaders = { ...headers, "Content-Type": "application/json; charset=utf-8" };
+      const cache = caches.default;
+      const hit = await cache.match(CACHE_KEY);
+      if (hit) return new Response(await hit.text(), { status: 200, headers: { ...jsonHeaders, "X-Relay-Cache": "hit" } });
+      const results = await fetchAllNodes(env.TAGO_SERVICE_KEY);
+      const okCount = Object.values(results).filter((r) => r.ok).length;
+      const text = JSON.stringify({ fetched_at: new Date().toISOString(), results });
+      if (okCount >= CACHE_MIN_OK) {
+        const toCache = new Response(text, { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=" + CACHE_TTL_S } });
+        ctx.waitUntil(cache.put(CACHE_KEY, toCache));
+      }
+      return new Response(text, { status: 200, headers: { ...jsonHeaders, "X-Relay-Cache": "miss" } });
     }
 
     if (url.pathname === "/bis") {
