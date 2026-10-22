@@ -77,8 +77,26 @@ function renderAll(state, nowMs) {
   };
 }
 
+// 기점·종점 기준 참고 시간표. 변환·보정 없이 원본 시각 그대로 표시한다.
+function renderReference(tt) {
+  if (!tt || !Array.isArray(tt.routes) || !tt.routes.length) return "";
+  var html = "";
+  if (tt.note) html += '<div class="notice stale">' + esc(tt.note) + '</div>';
+  html += tt.routes.map(function (r) {
+    var trips = (r.trips || []).map(function (t) {
+      return '<div class="trip">' + esc(t.from) + ' <b>' + esc(t.depart) + '</b> → ' + esc(t.to) + ' ' + esc(t.arrive) + '</div>';
+    }).join("");
+    return '<div class="rt"><div><b>' + esc(r.routeno) + '번</b> <span class="muted">' + esc(r.path) + '</span></div>' + trips + '</div>';
+  }).join("");
+  if (Array.isArray(tt.missing) && tt.missing.length) {
+    html += '<p class="muted">시간표 없음: ' + tt.missing.map(esc).join(", ") + '</p>';
+  }
+  if (tt.source) html += '<p class="muted">' + esc(tt.source) + '</p>';
+  return html;
+}
+
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { validEta: validEta, formatEta: formatEta, ageMinutes: ageMinutes, renderStats: renderStats, renderLive: renderLive, renderAll: renderAll };
+  module.exports = { validEta: validEta, formatEta: formatEta, ageMinutes: ageMinutes, renderStats: renderStats, renderLive: renderLive, renderAll: renderAll, renderReference: renderReference };
 }
 
 if (typeof document !== "undefined") {
@@ -119,6 +137,14 @@ if (typeof document !== "undefined") {
     Array.prototype.forEach.call(buttons, function (b) {
       b.addEventListener("click", function () { state.dir = b.dataset.dir; draw(); });
     });
+    // 참고 시간표는 정적 데이터라 한 번만 불러온다. 없거나 실패하면 섹션을 숨긴 채 둔다.
+    getJson("timetable.json").then(function (res) {
+      var html = res.data ? renderReference(res.data) : "";
+      if (!html) return;
+      document.getElementById("refbody").innerHTML = html;
+      document.getElementById("reference").hidden = false;
+    });
+
     document.getElementById("refresh").addEventListener("click", load);
     document.addEventListener("visibilitychange", function () { if (!document.hidden) load(); });
     setInterval(function () { if (!document.hidden) load(); }, 60000);
