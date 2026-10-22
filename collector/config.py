@@ -42,6 +42,8 @@ DIRECTIONS = {
             {"city_code": "37390", "node_id": "CGB2479"},
             {"city_code": "37050", "node_id": "GMB2479"},
             {"city_code": "37100", "node_id": "GYB369001900"},
+            # 대구 등록 학명리 건너2 (nodeno 05743) — 급행9-3은 대구 버스라 여기서만 잡힘
+            {"city_code": "22", "node_id": "DGB7181001900"},
         ],
     },
 }

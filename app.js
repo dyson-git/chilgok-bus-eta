@@ -1,5 +1,5 @@
 "use strict";
-var DIR_LABELS = { hakmyeong: "학명리방향", dongmyeong: "동명방향" };
+var DIR_LABELS = { hakmyeong: "동명 출발 (학명리행)", dongmyeong: "학명리 출발 (동명행)" };
 var STALE_MIN = 15;
 
 function esc(s) {
@@ -63,6 +63,64 @@ function renderLive(entry, nowMs) {
   return html;
 }
 
+// collector/config.py is_allowed 의 정확한 JS 포트 (순수 함수). dirCfg = LIVE_CONFIG.directions[dir]
+function isAllowed(routeid, routeno, dirCfg) {
+  routeid = String(routeid); routeno = String(routeno);
+  if (routeno === "칠곡3") return dirCfg.chilgok3_routeids.indexOf(routeid) !== -1;
+  return dirCfg.routenos.indexOf(routeno) !== -1;
+}
+
+// TAGO 응답 JSON -> [{routeid, routeno, eta_min}]. 오류 봉투/헤더 오류는 throw.
+function parseArrivals(data) {
+  if (!data || !data.response) {
+    var h = (data && data.OpenAPI_ServiceResponse && data.OpenAPI_ServiceResponse.cmmMsgHeader) || {};
+    throw new Error("TAGO error " + (h.returnReasonCode || "?"));
+  }
+  var hdr = data.response.header;
+  if (hdr && hdr.resultCode && hdr.resultCode !== "00") throw new Error("TAGO error " + hdr.resultCode);
+  var items = data.response.body && data.response.body.items;
+  if (items === "" || items === undefined || items === null) return [];
+  var list = items.item;
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list)) list = [list];
+  return list.map(function (it) {
+    return { routeid: String(it.routeid), routeno: String(it.routeno), eta_min: Number(it.arrtime) / 60 };
+  });
+}
+
+// 허용 노선만 거르고 routeid별 최소 ETA로 중복 제거, 오름차순 정렬.
+function selectArrivals(all, dirCfg) {
+  var best = {};
+  all.forEach(function (o) {
+    if (!isAllowed(o.routeid, o.routeno, dirCfg) || !validEta(o.eta_min)) return;
+    var cur = best[o.routeid];
+    if (!cur || o.eta_min < cur.eta_min) best[o.routeid] = o;
+  });
+  return Object.keys(best).map(function (k) { return best[k]; })
+    .sort(function (a, b) { return a.eta_min - b.eta_min; });
+}
+
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function clockText(ms) {
+  var d = new Date(ms);
+  return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+}
+
+// live = { observations, errors, queriedAt }  (실시간 직접 조회 결과)
+function renderLiveResult(live) {
+  var html = '<p class="muted">실시간 (방금 조회) ' + esc(clockText(live.queriedAt)) + '</p>';
+  var hasErr = live.errors.length > 0;
+  if (hasErr) html += '<div class="notice error">조회 오류 — 일부 정류소를 확인하지 못함</div>';
+  if (live.observations.length) {
+    html += live.observations.map(function (o) {
+      return '<div class="row bus"><span><b>' + esc(o.routeno) + '번</b></span><span>' + esc(formatEta(o.eta_min)) + '</span></div>';
+    }).join("");
+  } else if (!hasErr) {
+    html += '<p>지금 접근 중인 버스 없음</p>';
+  }
+  return html;
+}
+
 function renderAll(state, nowMs) {
   var d = state.dir;
   var statsHtml = state.stats === null
@@ -70,10 +128,11 @@ function renderAll(state, nowMs) {
     : renderStats(state.stats[d]);
   var latestEntry = state.latest ? state.latest[d] : null;
   return {
-    timetable: "<h2>" + DIR_LABELS[d] + " 시간표</h2>" + statsHtml,
-    live: "<h2>" + DIR_LABELS[d] + " 지금 접근 중</h2>" +
+    timetable: "<h2>" + DIR_LABELS[d] + " — 시간표</h2>" + statsHtml,
+    live: "<h2>" + DIR_LABELS[d] + " — 접근 중인 버스</h2>" +
       (state.refreshFailed ? '<div class="notice error">새로고침 실패 — 이전 데이터 표시 중</div>' : "") +
-      renderLive(latestEntry, nowMs)
+      (state.live ? renderLiveResult(state.live)
+        : state.liveLoading ? '<p class="muted">실시간 조회 중…</p>' : renderLive(latestEntry, nowMs))
   };
 }
 
@@ -101,12 +160,52 @@ function renderReference(tt) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { validEta: validEta, formatEta: formatEta, ageMinutes: ageMinutes, renderStats: renderStats, renderLive: renderLive, renderAll: renderAll, renderReference: renderReference };
+  module.exports = { isAllowed: isAllowed, parseArrivals: parseArrivals, selectArrivals: selectArrivals, renderLiveResult: renderLiveResult, validEta: validEta, formatEta: formatEta, ageMinutes: ageMinutes, renderStats: renderStats, renderLive: renderLive, renderAll: renderAll, renderReference: renderReference };
 }
 
 if (typeof document !== "undefined") {
   (function () {
-    var state = { dir: "hakmyeong", stats: null, latest: null };
+    var state = { dir: "hakmyeong", stats: null, latest: null, live: null, liveLoading: true };
+    var TAGO_URL = "https://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList";
+    var MAX_INFLIGHT = 3, MAX_ATTEMPTS = 3;
+    var liveSeq = 0;
+
+    function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+    function fetchReg(key, reg) {
+      var url = TAGO_URL + "?serviceKey=" + encodeURIComponent(key) + "&cityCode=" + encodeURIComponent(reg.city_code) +
+        "&nodeId=" + encodeURIComponent(reg.node_id) + "&numOfRows=100&_type=json";
+      function attempt(n) {
+        return fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); })
+          .then(parseArrivals)
+          .catch(function (e) {
+            if (n >= MAX_ATTEMPTS) throw e;
+            return sleep(n * 1000).then(function () { return attempt(n + 1); });
+          });
+      }
+      return attempt(1);
+    }
+
+    // Resolves { observations, errors, queriedAt } or null if every registration failed / no config.
+    function fetchLive(dir) {
+      var cfg = window.LIVE_CONFIG;
+      if (!cfg || !cfg.serviceKey || !cfg.directions || !cfg.directions[dir]) return Promise.resolve(null);
+      var dirCfg = cfg.directions[dir];
+      var regs = dirCfg.registrations, all = [], errors = [], next = 0;
+      function worker() {
+        if (next >= regs.length) return Promise.resolve();
+        var reg = regs[next++];
+        return fetchReg(cfg.serviceKey, reg).then(function (list) { all = all.concat(list); })
+          .catch(function () { errors.push({ city_code: reg.city_code, node_id: reg.node_id }); })
+          .then(worker);
+      }
+      var workers = [];
+      for (var i = 0; i < Math.min(MAX_INFLIGHT, regs.length); i++) workers.push(worker());
+      return Promise.all(workers).then(function () {
+        if (errors.length >= regs.length) return null;
+        return { observations: selectArrivals(all, dirCfg), errors: errors, queriedAt: Date.now() };
+      });
+    }
     var elT = document.getElementById("timetable");
     var elL = document.getElementById("live");
     var buttons = document.querySelectorAll(".dirs button");
@@ -131,17 +230,20 @@ if (typeof document !== "undefined") {
     }
 
     function load() {
-      return Promise.all([getJson("data/stats.json"), getJson("data/latest.json")]).then(function (res) {
+      var dir = state.dir, seq = ++liveSeq;
+      return Promise.all([getJson("data/stats.json"), getJson("data/latest.json"), fetchLive(dir).catch(function () { return null; })]).then(function (res) {
+        if (seq !== liveSeq) return; // 그 사이 방향이 바뀌었거나 더 새 요청이 있음
+        state.live = res[2]; state.liveLoading = false;
         var failed = false;
         if (res[0].failed) failed = true; else state.stats = res[0].missing ? null : res[0].data;
         if (res[1].failed) failed = true; else state.latest = res[1].missing ? null : res[1].data;
-        state.refreshFailed = failed;
+        state.refreshFailed = failed && !state.live;
         draw();
       });
     }
 
     Array.prototype.forEach.call(buttons, function (b) {
-      b.addEventListener("click", function () { state.dir = b.dataset.dir; draw(); });
+      b.addEventListener("click", function () { state.dir = b.dataset.dir; state.live = null; state.liveLoading = true; draw(); load(); });
     });
     // 참고 시간표는 정적 데이터라 한 번만 불러온다. 없거나 실패하면 섹션을 숨긴 채 둔다.
     getJson("timetable.json").then(function (res) {

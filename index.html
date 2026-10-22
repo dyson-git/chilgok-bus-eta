@@ -43,8 +43,8 @@ details#reference[hidden] { display:none; }
   <h1>칠곡 버스 도착</h1>
   <section id="timetable" aria-live="polite"><p class="muted">불러오는 중…</p></section>
   <div class="dirs" role="group" aria-label="방향 선택">
-    <button type="button" data-dir="hakmyeong" aria-pressed="true">학명리방향</button>
-    <button type="button" data-dir="dongmyeong" aria-pressed="false">동명방향</button>
+    <button type="button" data-dir="hakmyeong" aria-pressed="true">동명 출발 (학명리행)</button>
+    <button type="button" data-dir="dongmyeong" aria-pressed="false">학명리 출발 (동명행)</button>
   </div>
   <section id="live" aria-live="polite"><p class="muted">불러오는 중…</p></section>
   <button type="button" id="refresh">새로고침</button>
@@ -53,6 +53,7 @@ details#reference[hidden] { display:none; }
     <div id="refbody"></div>
   </details>
 </main>
+<script src="live-config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

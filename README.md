@@ -25,6 +25,12 @@ GitHub Actions(`.github/workflows/poll.yml`)가 5분마다 `python -m collector.
 환경변수(사용자 범위)에서 읽는다. 로그는 `%LOCALAPPDATA%\chilgok-bus-eta\poll.log`.
 GitHub Actions 워크플로는 수동 실행(`workflow_dispatch`) 백업용이다.
 
+## 실시간 조회 (live-config.js)
+
+페이지는 새로고침마다 TAGO를 직접 조회한다(CORS 허용). 설정은 `live-config.js`에 있으며
+**서비스키가 공개 저장소에 포함된다**(사용자 결정). `collector/config.py`나 키가 바뀌면
+`python scripts/gen_live_config.py`를 다시 실행한다. 전부 실패하면 `data/latest.json`으로 대체 표시한다.
+
 ## 테스트
 
 ```
