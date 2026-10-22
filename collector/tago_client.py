@@ -64,8 +64,8 @@ def get_arrivals(service_key: str, city_code: str, node_id: str) -> list[Arrival
         arrtime_seconds = int(item["arrtime"])
         eta_min = arrtime_seconds / 60
         observation = ArrivalObservation(
-            routeid=item["routeid"],
-            routeno=item["routeno"],
+            routeid=str(item["routeid"]),
+            routeno=str(item["routeno"]),
             eta_min=eta_min
         )
         arrivals.append(observation)

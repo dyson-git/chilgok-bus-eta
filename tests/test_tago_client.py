@@ -110,3 +110,36 @@ def test_get_arrivals_raises_on_error_envelope(monkeypatch):
 
     assert "HTTP_ERROR" in str(exc_info.value)
     assert "04" in str(exc_info.value)
+
+
+def test_get_arrivals_coerces_numeric_routeid_and_routeno_to_str(monkeypatch):
+    """TAGO returns numeric routeno/routeid as JSON ints for numeric routes (e.g. 527)."""
+    mock_response = {
+        "response": {
+            "body": {
+                "items": {
+                    "item": [
+                        {"routeid": 527001, "routeno": 527, "arrtime": 90},
+                        {"routeid": "GGB999", "routeno": "급행3", "arrtime": 60}
+                    ]
+                }
+            }
+        }
+    }
+
+    def mock_get(url, params=None, timeout=None):
+        class MockResponse:
+            def json(self):
+                return mock_response
+        return MockResponse()
+
+    monkeypatch.setattr(requests, "get", mock_get)
+    result = get_arrivals("key", "37050", "DGB7021234")
+
+    assert result == [
+        ArrivalObservation("527001", "527", 1.5),
+        ArrivalObservation("GGB999", "급행3", 1.0)
+    ]
+    assert isinstance(result[0].routeid, str)
+    assert isinstance(result[0].routeno, str)
+    assert isinstance(result[0].eta_min, float)
