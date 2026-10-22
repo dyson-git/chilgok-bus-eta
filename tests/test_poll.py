@@ -247,3 +247,20 @@ def test_error_scrubbed_and_no_toward_false_for_failed_registration(tmp_path, mo
             text = path.read_text(encoding="utf-8")
             for form in (KEY, quote(KEY, safe=""), quote_plus(KEY)):
                 assert form not in text
+
+
+@pytest.mark.parametrize("raw", ["", "   \n"])
+def test_main_blank_key_treated_as_missing(monkeypatch, raw):
+    from collector import poll
+    monkeypatch.setenv("TAGO_SERVICE_KEY", raw)
+    monkeypatch.setattr(poll, "run_poll", lambda *a, **k: pytest.fail("should not poll"))
+    assert poll.main() == 1
+
+
+def test_main_strips_key(monkeypatch):
+    from collector import poll
+    seen = {}
+    monkeypatch.setenv("TAGO_SERVICE_KEY", "  abc\n")
+    monkeypatch.setattr(poll, "run_poll", lambda key, *a, **k: seen.setdefault("key", key))
+    assert poll.main() == 0
+    assert seen["key"] == "abc"

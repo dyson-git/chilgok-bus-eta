@@ -15,3 +15,14 @@ from collector.config import is_allowed
 ])
 def test_is_allowed(routeid, routeno, expected):
     assert is_allowed(routeid, routeno) is expected
+
+
+@pytest.mark.parametrize("routeid,routeno,direction,expected", [
+    ("X", "885-1", "dongmyeong", True), ("X", "885-1", "hakmyeong", False),
+    ("DGB4090003023", "칠곡3", "dongmyeong", True), ("DGB4090003023", "칠곡3", "hakmyeong", False),
+    ("X", "885", "dongmyeong", True), ("X", "885", "hakmyeong", True),
+    ("DGB4090003011", "칠곡3", "dongmyeong", True), ("DGB4090003011", "칠곡3", "hakmyeong", True),
+    ("DGB4090003013", "칠곡3", "dongmyeong", False), ("X", "527", "dongmyeong", False),
+])
+def test_is_allowed_by_direction(routeid, routeno, direction, expected):
+    assert is_allowed(routeid, routeno, direction) is expected

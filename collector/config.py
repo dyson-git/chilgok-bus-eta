@@ -58,7 +58,17 @@ ALLOWED_CHILGOK3_ROUTEIDS = {
 }
 
 
-def is_allowed(routeid: str, routeno: str) -> bool:
+# 칠곡 BIS 학명리 건너2 노선 목록 + 사용자 확인 2026-10-22 (동명방향 승차 정류소에만 해당, 학명리방향은 아님)
+EXTRA_ALLOWED = {
+    "dongmyeong": {
+        "routenos": {"885-1"},
+        "chilgok3_routeids": {"DGB4090003023"},  # 칠곡3[하판-동명-기성-동명]
+    },
+}
+
+
+def is_allowed(routeid: str, routeno: str, direction: str | None = None) -> bool:
+    extra = EXTRA_ALLOWED.get(direction, {})
     if routeno == "칠곡3":
-        return routeid in ALLOWED_CHILGOK3_ROUTEIDS
-    return routeno in ALLOWED_ROUTENOS
+        return routeid in ALLOWED_CHILGOK3_ROUTEIDS | extra.get("chilgok3_routeids", set())
+    return routeno in ALLOWED_ROUTENOS | extra.get("routenos", set())

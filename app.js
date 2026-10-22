@@ -122,7 +122,8 @@ if (typeof document !== "undefined") {
 
     // Resolves { data } on success, { missing: true } on 404, { failed: true } otherwise.
     function getJson(url) {
-      return fetch(url, { cache: "no-store" }).then(function (r) {
+      var bust = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+      return fetch(bust, { cache: "no-store" }).then(function (r) {
         if (r.status === 404) return { missing: true };
         if (!r.ok) return { failed: true };
         return r.json().then(function (data) { return { data: data }; });

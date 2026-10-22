@@ -88,7 +88,7 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep) -> No
                 annotated.append({
                     "routeid": o.routeid, "routeno": o.routeno, "eta_min": o.eta_min,
                     "city_code": reg["city_code"], "node_id": reg["node_id"],
-                    "toward": is_allowed(o.routeid, o.routeno),
+                    "toward": is_allowed(o.routeid, o.routeno, direction),
                 })
         best: dict[str, dict] = {}
         for o in annotated:
@@ -117,7 +117,7 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep) -> No
 
 
 def main() -> int:
-    key = os.environ.get("TAGO_SERVICE_KEY")
+    key = (os.environ.get("TAGO_SERVICE_KEY") or "").strip()
     if not key:
         print("TAGO_SERVICE_KEY environment variable is not set", file=sys.stderr)
         return 1
