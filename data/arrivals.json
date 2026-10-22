@@ -49,6 +49,11 @@
         "arrival_time": "2026-10-22T16:12:27+09:00",
         "routeid": "DGB4090003011",
         "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-22T17:28:25+09:00",
+        "routeid": "GMB88510",
+        "routeno": "885"
       }
     ]
   }

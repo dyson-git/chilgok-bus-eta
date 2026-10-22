@@ -64,6 +64,13 @@
       "max_time": "16:12",
       "avg_time": "16:12",
       "sample_count": 1
+    },
+    {
+      "slot_index": 5,
+      "min_time": "17:28",
+      "max_time": "17:28",
+      "avg_time": "17:28",
+      "sample_count": 1
     }
   ]
 }
