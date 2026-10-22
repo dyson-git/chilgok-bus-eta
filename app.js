@@ -208,7 +208,7 @@ if (typeof document !== "undefined") {
     // 1순위: 중계 /all 한 번으로 전부 (재시도는 중계가 한다). 12초 안에 못 받으면 null.
     function fetchAll(c) {
       var ctl = new AbortController();
-      var timer = setTimeout(function () { ctl.abort(); }, 12000);
+      var timer = setTimeout(function () { ctl.abort(); }, 15000); // 중계 최악 ~12.5초(9초 예산 + 진행 중 1회 3.5초)보다 길게
       return fetch(c.relayUrl + "/all", { cache: "no-store", signal: ctl.signal }).then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
