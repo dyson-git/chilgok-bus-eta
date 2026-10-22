@@ -1,4 +1,12 @@
 {
-  "hakmyeong": [],
+  "hakmyeong": [
+    {
+      "slot_index": 1,
+      "min_time": "11:23",
+      "max_time": "11:23",
+      "avg_time": "11:23",
+      "sample_count": 1
+    }
+  ],
   "dongmyeong": []
 }

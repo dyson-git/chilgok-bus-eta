@@ -1,4 +1,12 @@
 {
-  "hakmyeong": {},
+  "hakmyeong": {
+    "2026-10-22": [
+      {
+        "arrival_time": "2026-10-22T11:23:58+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      }
+    ]
+  },
   "dongmyeong": {}
 }
