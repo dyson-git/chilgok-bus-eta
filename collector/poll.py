@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import time
+from urllib.parse import quote, quote_plus
 from datetime import datetime, time as dtime, timedelta, timezone
 from pathlib import Path
 
@@ -26,6 +27,15 @@ def is_within_collection_window(now_kst: datetime) -> bool:
     return WINDOW_START <= now_kst.time() <= WINDOW_END
 
 
+def _scrub(text: str, service_key: str) -> str:
+    """Remove the service key (raw and URL-encoded forms) from an error message."""
+    if not service_key:
+        return text
+    for form in {service_key, quote(service_key, safe=""), quote_plus(service_key)}:
+        text = text.replace(form, "***")
+    return text
+
+
 def _fetch_registration(service_key, reg, sleep, state):
     """Fetch one registration with retries. Returns (observations, error_or_None).
 
@@ -47,7 +57,7 @@ def _fetch_registration(service_key, reg, sleep, state):
             wait = BACKOFF_SECONDS[attempt]
             sleep(wait)
             state["waited"] += wait
-    return [], {"city_code": reg["city_code"], "node_id": reg["node_id"], "error": str(last_exc)}
+    return [], {"city_code": reg["city_code"], "node_id": reg["node_id"], "error": f"{type(last_exc).__name__}: {_scrub(str(last_exc), service_key)}"}
 
 
 def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep) -> None:

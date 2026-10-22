@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from urllib.parse import quote, quote_plus
 import requests
 
 from collector.config import DIRECTIONS
@@ -14,6 +15,9 @@ KST = timezone(timedelta(hours=9))
 
 def dt(y, mo, d, h, mi, s=0):
     return datetime(y, mo, d, h, mi, s, tzinfo=KST)
+
+
+KEY = "ab+c/d=e+f=="
 
 
 class FakeSleep:
@@ -106,13 +110,13 @@ def test_retry_backoff_and_error_recorded_siblings_kept(tmp_path, monkeypatch):
     def fake(service_key, city_code, node_id):
         calls.append(node_id)
         if node_id == "CGB2479":
-            raise TagoApiError("boom SECRET")
+            raise TagoApiError(f"boom {KEY} / {quote(KEY, safe='')} / {quote_plus(KEY)}")
         return [ArrivalObservation("R2", "36", 7.0)]
 
     monkeypatch.setattr("collector.poll.get_arrivals", fake)
     sleep = FakeSleep()
     data = tmp_path / "data"
-    run_poll("SECRET", directions, dt(2026, 10, 21, 13, 0), data, sleep=sleep)
+    run_poll(KEY, directions, dt(2026, 10, 21, 13, 0), data, sleep=sleep)
 
     assert calls == ["CGB2479"] * 3 + ["GMB2479"]
     # backoff 2s, 4s; then the 1.2s spacing before the sibling's call
@@ -121,10 +125,14 @@ def test_retry_backoff_and_error_recorded_siblings_kept(tmp_path, monkeypatch):
     latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
     d = latest["dongmyeong"]
     assert d["observations"] == [{"routeid": "R2", "routeno": "36", "eta_min": 7.0}]
-    assert d["errors"] == [{"city_code": "37390", "node_id": "CGB2479", "error": "boom SECRET"}]
+    assert d["errors"] == [{"city_code": "37390", "node_id": "CGB2479", "error": "TagoApiError: boom *** / *** / ***"}]
     # recorded line carries the errors too
     line = _lines(data / "observations" / "dongmyeong" / "2026-10-21.jsonl")[0]
     assert line["errors"] == d["errors"]
+    for path in (data / "latest.json", data / "observations" / "dongmyeong" / "2026-10-21.jsonl"):
+        text = path.read_text(encoding="utf-8")
+        for form in (KEY, quote(KEY, safe=""), quote_plus(KEY)):
+            assert form not in text
 
 
 def test_retry_succeeds_on_second_attempt_and_other_exceptions_propagate(tmp_path, monkeypatch):
