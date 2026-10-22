@@ -21,3 +21,4 @@
 {"polled_at": "2026-10-22T13:20:09+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-22T13:25:11+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-22T13:30:10+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-22T13:35:05+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 26.883333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
