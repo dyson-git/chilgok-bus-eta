@@ -60,3 +60,4 @@
 {"polled_at": "2026-10-22T16:40:06+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-22T16:45:07+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-22T16:50:06+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 41.68333333333333, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-22T16:55:06+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 39.833333333333336, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
