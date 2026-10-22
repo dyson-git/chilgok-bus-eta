@@ -10,6 +10,7 @@ import requests
 
 from collector.config import DIRECTIONS
 from collector.rebuild import rebuild_all
+from collector.route_filter import RouteCache, fetch_route_stops, route_goes_toward
 from collector.tago_client import TagoApiError, get_arrivals
 
 # Korea has no DST, so a fixed offset avoids needing the tzdata package on Windows.
@@ -36,11 +37,12 @@ def _scrub(text: str, service_key: str) -> str:
     return text
 
 
-def _fetch_registration(service_key, reg, sleep, state):
-    """Fetch one registration with retries. Returns (observations, error_or_None).
+def _call_with_retry(call, sleep, state):
+    """Run `call()` with retries. Returns (result, exception_or_None).
 
     `state["waited"]` is the time slept since the previous API call, so that any
-    two consecutive calls are at least MIN_CALL_SPACING apart (backoff counts).
+    two consecutive calls (arrivals or route lookups) are at least
+    MIN_CALL_SPACING apart (backoff counts).
     """
     last_exc = None
     for attempt in range(MAX_ATTEMPTS):
@@ -50,46 +52,96 @@ def _fetch_registration(service_key, reg, sleep, state):
         state["called"] = True
         state["waited"] = 0.0
         try:
-            return get_arrivals(service_key, reg["city_code"], reg["node_id"]), None
+            return call(), None
         except RETRYABLE as exc:
             last_exc = exc
         if attempt < MAX_ATTEMPTS - 1:
             wait = BACKOFF_SECONDS[attempt]
             sleep(wait)
             state["waited"] += wait
-    return [], {"city_code": reg["city_code"], "node_id": reg["node_id"], "error": f"{type(last_exc).__name__}: {_scrub(str(last_exc), service_key)}"}
+    return None, last_exc
 
 
-def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep) -> None:
+def _error_text(exc, service_key):
+    return f"{type(exc).__name__}: {_scrub(str(exc), service_key)}"
+
+
+def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep, fetch_stops=None) -> None:
     if not is_within_collection_window(now_kst):
         return
+    if fetch_stops is None:
+        fetch_stops = fetch_route_stops
     data_dir = Path(data_dir)
     polled_at = now_kst.isoformat(timespec="seconds")
     day = now_kst.date().isoformat()
     state = {"called": False, "waited": 0.0}
+    cache = RouteCache(data_dir / "route_cache.json", today=now_kst.date())
+    failed_lookups: dict[tuple[str, str], Exception] = {}
     latest: dict[str, dict] = {}
 
+    def retrying_fetch(key, city, route):
+        stops, exc = _call_with_retry(lambda: fetch_stops(key, city, route), sleep, state)
+        if exc is not None:
+            raise exc
+        return stops
+
     for direction, cfg in directions.items():
-        best: dict[str, dict] = {}
+        keywords = cfg["destination_keywords"]
+        annotated: list[dict] = []
         errors: list[dict] = []
         for reg in cfg["registrations"]:
-            obs_list, err = _fetch_registration(service_key, reg, sleep, state)
-            if err is not None:
-                errors.append(err)
+            obs_list, exc = _call_with_retry(
+                lambda: get_arrivals(service_key, reg["city_code"], reg["node_id"]), sleep, state)
+            if exc is not None:
+                errors.append({"city_code": reg["city_code"], "node_id": reg["node_id"],
+                               "error": _error_text(exc, service_key)})
+                continue
             for o in obs_list:
-                cur = best.get(o.routeid)
-                if cur is None or o.eta_min < cur["eta_min"]:
-                    best[o.routeid] = {"routeid": o.routeid, "routeno": o.routeno, "eta_min": o.eta_min}
-        record = {"polled_at": polled_at, "observations": list(best.values()), "errors": errors}
+                lookup = (reg["city_code"], o.routeid)
+                stops = None
+                if lookup in failed_lookups:
+                    lookup_exc = failed_lookups[lookup]
+                else:
+                    lookup_exc = None
+                    try:
+                        stops = cache.get_stops(service_key, reg["city_code"], o.routeid,
+                                                fetch=retrying_fetch)
+                    except RETRYABLE as e:
+                        lookup_exc = failed_lookups[lookup] = e
+                if lookup_exc is not None:
+                    # Unknown route shape: report it, never silently mark toward=False.
+                    errors.append({"city_code": reg["city_code"], "node_id": reg["node_id"],
+                                   "route_id": o.routeid, "error": _error_text(lookup_exc, service_key)})
+                    continue
+                annotated.append({
+                    "routeid": o.routeid, "routeno": o.routeno, "eta_min": o.eta_min,
+                    "city_code": reg["city_code"], "node_id": reg["node_id"],
+                    "toward": route_goes_toward(stops, reg["node_id"], keywords),
+                })
+        best: dict[str, dict] = {}
+        for o in annotated:
+            if not o["toward"]:
+                continue
+            cur = best.get(o["routeid"])
+            if cur is None or o["eta_min"] < cur["eta_min"]:
+                best[o["routeid"]] = o
+        kept = list(best.values()) + [o for o in annotated if not o["toward"]]
         out_dir = data_dir / "observations" / direction
         out_dir.mkdir(parents=True, exist_ok=True)
+        record = {"polled_at": polled_at, "observations": kept, "errors": errors}
         with (out_dir / f"{day}.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        latest[direction] = record
+        latest[direction] = {
+            "polled_at": polled_at,
+            "observations": [
+                {"routeid": o["routeid"], "routeno": o["routeno"], "eta_min": o["eta_min"]}
+                for o in best.values()],
+            "errors": errors,
+        }
 
+    cache.save()
     (data_dir / "latest.json").write_text(
-        json.dumps(latest, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+        json.dumps(latest, ensure_ascii=False, indent=2), encoding="utf-8")
     rebuild_all(data_dir, as_of=now_kst.date(), directions=directions)
 
 

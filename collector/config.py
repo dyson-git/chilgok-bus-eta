@@ -17,6 +17,7 @@ DIRECTIONS = {
     # 동명면 쪽에서 학명리/학명동 쪽으로 가는 버스
     "hakmyeong": {
         "label": "학명리방향",
+        "destination_keywords": ["학명"],
         "registrations": [
             # 동명면행정복지센터
             {"city_code": "37390", "node_id": "CGB2142"},
@@ -38,6 +39,7 @@ DIRECTIONS = {
     # 학명리 쪽에서 동명면 쪽으로 가는 버스 ("학명리 건너2" 정류소)
     "dongmyeong": {
         "label": "동명방향",
+        "destination_keywords": ["동명"],
         "registrations": [
             {"city_code": "37390", "node_id": "CGB2479"},
             {"city_code": "37050", "node_id": "GMB2479"},

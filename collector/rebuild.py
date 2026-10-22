@@ -35,6 +35,7 @@ def _load_snapshots(direction_dir: Path) -> list[PollSnapshot]:
                     observations=[
                         ArrivalObservation(o["routeid"], o["routeno"], float(o["eta_min"]))
                         for o in raw.get("observations", [])
+                        if o.get("toward", True)
                     ],
                 ))
     snapshots.sort(key=lambda s: s.polled_at)

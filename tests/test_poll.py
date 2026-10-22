@@ -28,6 +28,23 @@ class FakeSleep:
         self.calls.append(seconds)
 
 
+def _all_toward_stops():
+    nodes = {r["node_id"] for cfg in DIRECTIONS.values() for r in cfg["registrations"]}
+    nodes |= {"A", "B", "C", "CGB2479", "GMB2479"}
+    stops = [(i, n, "정류장") for i, n in enumerate(sorted(nodes))]
+    return stops + [(999, "END", "학명리 동명")]
+
+
+def all_toward(service_key, city_code, route_id):
+    return _all_toward_stops()
+
+
+def _run(key, directions, now, data, **kw):
+    kw.setdefault("sleep", FakeSleep())
+    kw.setdefault("fetch_stops", all_toward)
+    return run_poll(key, directions, now, data, **kw)
+
+
 def _lines(path):
     return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines()]
 
@@ -45,7 +62,7 @@ def test_run_poll_outside_window_does_nothing(tmp_path, monkeypatch):
 
     monkeypatch.setattr("collector.poll.get_arrivals", boom)
     data = tmp_path / "data"
-    run_poll("key", DIRECTIONS, dt(2026, 10, 21, 5, 0), data, sleep=FakeSleep())
+    _run("key", DIRECTIONS, dt(2026, 10, 21, 5, 0), data, sleep=FakeSleep(), fetch_stops=boom)
     assert not data.exists()
 
 
@@ -57,7 +74,7 @@ def test_run_poll_merges_all_registrations_for_a_direction(tmp_path, monkeypatch
 
     monkeypatch.setattr("collector.poll.get_arrivals", fake)
     data = tmp_path / "data"
-    run_poll("key", DIRECTIONS, dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
+    _run("key", DIRECTIONS, dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
     latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
     assert latest["hakmyeong"]["observations"] == [
         {"routeid": "GMB885-10", "routeno": "885", "eta_min": 12.0}
@@ -71,7 +88,7 @@ def test_run_poll_merges_all_registrations_for_a_direction(tmp_path, monkeypatch
 def test_run_poll_records_empty_observations_without_fabricating(tmp_path, monkeypatch):
     monkeypatch.setattr("collector.poll.get_arrivals", lambda *a, **k: [])
     data = tmp_path / "data"
-    run_poll("key", DIRECTIONS, dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
+    _run("key", DIRECTIONS, dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
     latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
     assert latest["hakmyeong"]["observations"] == []
     assert latest["hakmyeong"]["errors"] == []
@@ -87,7 +104,7 @@ def test_dedupes_by_routeid_keeping_smallest_eta(tmp_path, monkeypatch):
 
     monkeypatch.setattr("collector.poll.get_arrivals", fake)
     data = tmp_path / "data"
-    run_poll("key", DIRECTIONS, dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
+    _run("key", DIRECTIONS, dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
     latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
     assert latest["hakmyeong"]["observations"] == [
         {"routeid": "R1", "routeno": "885", "eta_min": 4.0}
@@ -98,7 +115,7 @@ def test_retry_backoff_and_error_recorded_siblings_kept(tmp_path, monkeypatch):
     bad = {"city_code": "37390", "node_id": "CGB2479"}
     directions = {
         "dongmyeong": {
-            "label": "x",
+            "label": "x", "destination_keywords": ["학명"],
             "registrations": [
                 bad,
                 {"city_code": "37050", "node_id": "GMB2479"},
@@ -116,12 +133,13 @@ def test_retry_backoff_and_error_recorded_siblings_kept(tmp_path, monkeypatch):
     monkeypatch.setattr("collector.poll.get_arrivals", fake)
     sleep = FakeSleep()
     data = tmp_path / "data"
-    run_poll(KEY, directions, dt(2026, 10, 21, 13, 0), data, sleep=sleep)
+    _run(KEY, directions, dt(2026, 10, 21, 13, 0), data, sleep=sleep)
 
     assert calls == ["CGB2479"] * 3 + ["GMB2479"]
     # backoff 2s, 4s; then the 1.2s spacing before the sibling's call
     assert sleep.calls[:2] == [2, 4]
-    assert sleep.calls[2:] == [pytest.approx(1.2)]
+    # 1.2s before the sibling's arrival call, then 1.2s before its route lookup
+    assert sleep.calls[2:] == [pytest.approx(1.2)] * 2
     latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
     d = latest["dongmyeong"]
     assert d["observations"] == [{"routeid": "R2", "routeno": "36", "eta_min": 7.0}]
@@ -136,7 +154,7 @@ def test_retry_backoff_and_error_recorded_siblings_kept(tmp_path, monkeypatch):
 
 
 def test_retry_succeeds_on_second_attempt_and_other_exceptions_propagate(tmp_path, monkeypatch):
-    directions = {"d": {"label": "x", "registrations": [{"city_code": "1", "node_id": "A"}]}}
+    directions = {"d": {"label": "x", "destination_keywords": ["학명"], "registrations": [{"city_code": "1", "node_id": "A"}]}}
     state = {"n": 0}
 
     def flaky(service_key, city_code, node_id):
@@ -147,8 +165,9 @@ def test_retry_succeeds_on_second_attempt_and_other_exceptions_propagate(tmp_pat
 
     monkeypatch.setattr("collector.poll.get_arrivals", flaky)
     sleep = FakeSleep()
-    run_poll("k", directions, dt(2026, 10, 21, 13, 0), tmp_path / "data", sleep=sleep)
-    assert sleep.calls == [2]
+    _run("k", directions, dt(2026, 10, 21, 13, 0), tmp_path / "data", sleep=sleep)
+    # backoff 2s after the failure, then 1.2s spacing before the route lookup
+    assert sleep.calls == [2, pytest.approx(1.2)]
     latest = json.loads((tmp_path / "data" / "latest.json").read_text(encoding="utf-8"))
     assert latest["d"]["errors"] == [] and len(latest["d"]["observations"]) == 1
 
@@ -157,23 +176,138 @@ def test_retry_succeeds_on_second_attempt_and_other_exceptions_propagate(tmp_pat
 
     monkeypatch.setattr("collector.poll.get_arrivals", bug)
     with pytest.raises(KeyError):
-        run_poll("k", directions, dt(2026, 10, 21, 13, 5), tmp_path / "data", sleep=FakeSleep())
+        _run("k", directions, dt(2026, 10, 21, 13, 5), tmp_path / "data", sleep=FakeSleep())
 
 
 def test_spacing_between_calls_without_failures(tmp_path, monkeypatch):
     monkeypatch.setattr("collector.poll.get_arrivals", lambda *a, **k: [])
     sleep = FakeSleep()
-    directions = {"d": {"label": "x", "registrations": [
+    directions = {"d": {"label": "x", "destination_keywords": ["학명"], "registrations": [
         {"city_code": "1", "node_id": "A"}, {"city_code": "1", "node_id": "B"},
         {"city_code": "1", "node_id": "C"}]}}
-    run_poll("k", directions, dt(2026, 10, 21, 13, 0), tmp_path / "data", sleep=sleep)
+    _run("k", directions, dt(2026, 10, 21, 13, 0), tmp_path / "data", sleep=sleep)
     assert sleep.calls == [pytest.approx(1.2)] * 2
 
 
 def test_run_poll_appends_and_rebuilds(tmp_path, monkeypatch):
     monkeypatch.setattr("collector.poll.get_arrivals", lambda *a, **k: [])
     data = tmp_path / "data"
-    run_poll("k", DIRECTIONS, dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
-    run_poll("k", DIRECTIONS, dt(2026, 10, 21, 13, 5), data, sleep=FakeSleep())
+    _run("k", DIRECTIONS, dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
+    _run("k", DIRECTIONS, dt(2026, 10, 21, 13, 5), data, sleep=FakeSleep())
     assert len(_lines(data / "observations" / "hakmyeong" / "2026-10-21.jsonl")) == 2
     assert (data / "arrivals.json").exists() and (data / "stats.json").exists()
+
+
+# --- route filter (Task 6b) -------------------------------------------------
+
+TOWARD = [(1, "N1", "우체국"), (2, "N2", "학명리")]
+AWAY = [(1, "N1", "우체국"), (2, "N2", "동명교통")]
+
+
+def _one_dir(*regs):
+    return {"d": {"label": "x", "destination_keywords": ["학명"],
+                  "registrations": [{"city_code": "22", "node_id": n} for n in regs]}}
+
+
+def _arrivals_by_node(table):
+    def fake(service_key, city_code, node_id):
+        return table.get(node_id, [])
+    return fake
+
+
+def test_non_toward_routes_kept_in_jsonl_but_excluded_from_latest(tmp_path, monkeypatch):
+    monkeypatch.setattr("collector.poll.get_arrivals", _arrivals_by_node({
+        "N1": [ArrivalObservation("GOOD", "93", 5.0), ArrivalObservation("BAD", "3", 2.0)]}))
+    routes = {"GOOD": TOWARD, "BAD": AWAY}
+    data = tmp_path / "data"
+    _run("k", _one_dir("N1"), dt(2026, 10, 21, 13, 0), data,
+         fetch_stops=lambda key, city, route: routes[route])
+    latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
+    assert latest["d"]["observations"] == [{"routeid": "GOOD", "routeno": "93", "eta_min": 5.0}]
+    rec = _lines(data / "observations" / "d" / "2026-10-21.jsonl")[0]
+    by_id = {o["routeid"]: o for o in rec["observations"]}
+    assert by_id["GOOD"] == {"routeid": "GOOD", "routeno": "93", "eta_min": 5.0,
+                             "city_code": "22", "node_id": "N1", "toward": True}
+    assert by_id["BAD"]["toward"] is False and by_id["BAD"]["node_id"] == "N1"
+
+
+def test_dedupe_only_among_toward_and_after_annotation(tmp_path, monkeypatch):
+    # Same route seen at N1 (toward, eta 9) and N2 (not toward from there, eta 1).
+    monkeypatch.setattr("collector.poll.get_arrivals", _arrivals_by_node({
+        "N1": [ArrivalObservation("R", "93", 9.0)],
+        "N2": [ArrivalObservation("R", "93", 1.0)]}))
+    stops = [(1, "N2", "x"), (2, "Z", "y"), (3, "N1", "x"), (4, "H", "학명리")]
+    # from N2 the route reaches 학명 too -> both toward; smallest eta wins
+    data = tmp_path / "data"
+    _run("k", _one_dir("N1", "N2"), dt(2026, 10, 21, 13, 0), data, fetch_stops=lambda *a: stops)
+    latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
+    assert latest["d"]["observations"] == [{"routeid": "R", "routeno": "93", "eta_min": 1.0}]
+    # now N2 is after the destination: the eta-1 observation must not win
+    stops2 = [(1, "N1", "x"), (2, "H", "학명리"), (3, "N2", "x")]
+    data2 = tmp_path / "data2"
+    _run("k", _one_dir("N1", "N2"), dt(2026, 10, 21, 13, 0), data2, fetch_stops=lambda *a: stops2)
+    latest2 = json.loads((data2 / "latest.json").read_text(encoding="utf-8"))
+    assert latest2["d"]["observations"] == [{"routeid": "R", "routeno": "93", "eta_min": 9.0}]
+    rec = _lines(data2 / "observations" / "d" / "2026-10-21.jsonl")[0]
+    assert sorted(o["toward"] for o in rec["observations"]) == [False, True]
+
+
+def test_route_lookups_use_spacing_and_retry_policy(tmp_path, monkeypatch):
+    monkeypatch.setattr("collector.poll.get_arrivals", _arrivals_by_node({
+        "N1": [ArrivalObservation("R", "93", 5.0)]}))
+    n = {"c": 0}
+
+    def flaky(key, city, route):
+        n["c"] += 1
+        if n["c"] < 3:
+            raise TagoApiError("transient")
+        return TOWARD
+
+    sleep = FakeSleep()
+    data = tmp_path / "data"
+    _run("k", _one_dir("N1"), dt(2026, 10, 21, 13, 0), data, sleep=sleep, fetch_stops=flaky)
+    assert n["c"] == 3
+    # spacing before 1st lookup, then backoff 2s / 4s between lookup attempts
+    assert sleep.calls == [pytest.approx(1.2), 2, 4]
+    latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
+    assert latest["d"]["errors"] == [] and len(latest["d"]["observations"]) == 1
+
+
+def test_route_lookup_failure_records_scrubbed_error_not_silent_false(tmp_path, monkeypatch):
+    monkeypatch.setattr("collector.poll.get_arrivals", _arrivals_by_node({
+        "N1": [ArrivalObservation("R", "93", 5.0)]}))
+
+    def down(key, city, route):
+        raise TagoApiError(f"boom {KEY} / {quote(KEY, safe='')} / {quote_plus(KEY)}")
+
+    data = tmp_path / "data"
+    _run(KEY, _one_dir("N1"), dt(2026, 10, 21, 13, 0), data, fetch_stops=down)
+    latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
+    assert latest["d"]["errors"] == [{"city_code": "22", "node_id": "N1", "route_id": "R",
+                                      "error": "TagoApiError: boom *** / *** / ***"}]
+    assert latest["d"]["observations"] == []
+    rec = _lines(data / "observations" / "d" / "2026-10-21.jsonl")[0]
+    assert all(o.get("toward") is not False for o in rec["observations"])
+    for path in data.rglob("*"):
+        if path.is_file():
+            text = path.read_text(encoding="utf-8")
+            for form in (KEY, quote(KEY, safe=""), quote_plus(KEY)):
+                assert form not in text
+
+
+def test_route_cache_written_once_without_key(tmp_path, monkeypatch):
+    monkeypatch.setattr("collector.poll.get_arrivals", _arrivals_by_node({
+        "N1": [ArrivalObservation("R", "93", 5.0)], "N2": [ArrivalObservation("R", "93", 6.0)]}))
+    calls = []
+
+    def fetch(key, city, route):
+        calls.append(route)
+        return TOWARD
+
+    data = tmp_path / "data"
+    _run(KEY, _one_dir("N1", "N2"), dt(2026, 10, 21, 13, 0), data, fetch_stops=fetch)
+    assert calls == ["R"]  # second sighting served from the cache
+    text = (data / "route_cache.json").read_text(encoding="utf-8")
+    assert "22:R" in json.loads(text) and "학명리" in text
+    for form in (KEY, quote(KEY, safe=""), quote_plus(KEY)):
+        assert form not in text

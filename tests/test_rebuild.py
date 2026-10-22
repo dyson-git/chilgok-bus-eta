@@ -82,3 +82,21 @@ def test_bus_spanning_midnight_file_boundary_is_resolved_once(tmp_path):
     arrivals = _load(data, "arrivals.json")["hakmyeong"]
     assert arrivals == {"2026-10-02": [
         {"arrival_time": "2026-10-02T00:03:00+09:00", "routeid": "R1", "routeno": "250"}]}
+
+
+def test_non_toward_observations_ignored_and_missing_toward_kept(tmp_path):
+    data = tmp_path / "data"
+
+    def snap(ts, obs):
+        return json.dumps({"polled_at": ts, "observations": obs, "errors": []}, ensure_ascii=False)
+
+    def o(rid, eta, **kw):
+        return {"routeid": rid, "routeno": rid, "eta_min": eta, **kw}
+
+    _write(data, "hakmyeong", "2026-10-01.jsonl", [
+        snap("2026-10-01T08:00:00+09:00", [o("A", 3, toward=True), o("B", 3, toward=False), o("C", 3)]),
+        snap("2026-10-01T08:01:00+09:00", []),
+    ])
+    rebuild_all(data, as_of=date(2026, 10, 1), directions=DIRECTIONS)
+    ids = [a["routeid"] for a in _load(data, "arrivals.json")["hakmyeong"]["2026-10-01"]]
+    assert sorted(ids) == ["A", "C"]
