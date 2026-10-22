@@ -84,9 +84,11 @@ function renderReference(tt) {
   if (tt.note) html += '<div class="notice stale">' + esc(tt.note) + '</div>';
   html += tt.routes.map(function (r) {
     var trips = (r.trips || []).map(function (t) {
-      return '<div class="trip">' + esc(t.from) + ' <b>' + esc(t.depart) + '</b> → ' + esc(t.to) + ' ' + esc(t.arrive) + '</div>';
+      var v = t.variant ? ' (' + esc(t.variant) + ')' : '';
+      if (t.arrive) return '<div class="trip">' + esc(t.from) + ' <b>' + esc(t.depart) + '</b> → ' + esc(t.to) + ' ' + esc(t.arrive) + v + '</div>';
+      return '<div class="trip">' + esc(t.from) + ' <b>' + esc(t.depart) + '</b> 출발 → ' + esc(t.to) + v + '</div>';
     }).join("");
-    return '<div class="rt"><div><b>' + esc(r.routeno) + '번</b> <span class="muted">' + esc(r.path) + '</span></div>' + trips + '</div>';
+    return '<div class="rt"><div><b>' + esc(r.routeno) + '번</b> <span class="muted">' + esc(r.path) + '</span>' + (r.source ? '<br><small class="muted">' + esc(r.source) + '</small>' : '') + '</div>' + trips + '</div>';
   }).join("");
   if (Array.isArray(tt.missing) && tt.missing.length) {
     html += '<p class="muted">시간표 없음: ' + tt.missing.map(esc).join(", ") + '</p>';
