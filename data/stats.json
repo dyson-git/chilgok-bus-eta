@@ -6,6 +6,13 @@
       "max_time": "11:23",
       "avg_time": "11:23",
       "sample_count": 1
+    },
+    {
+      "slot_index": 2,
+      "min_time": "13:45",
+      "max_time": "13:45",
+      "avg_time": "13:45",
+      "sample_count": 1
     }
   ],
   "dongmyeong": []
