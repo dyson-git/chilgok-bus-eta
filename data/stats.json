@@ -2,10 +2,10 @@
   "hakmyeong": [
     {
       "slot_index": 1,
-      "min_time": "11:23",
+      "min_time": "08:35",
       "max_time": "11:23",
-      "avg_time": "11:23",
-      "sample_count": 1
+      "avg_time": "09:59",
+      "sample_count": 2
     },
     {
       "slot_index": 2,
