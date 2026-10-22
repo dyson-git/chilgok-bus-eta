@@ -17,9 +17,6 @@ DIRECTIONS = {
     # 동명면 쪽에서 학명리/학명동 쪽으로 가는 버스
     "hakmyeong": {
         "label": "학명리방향",
-        "destination_keywords": ["학명"],
-        # TAGO에 경유정류소가 비어있음 — 사용자 확인(2026-10-22)으로 학명리 경유
-        "route_overrides": {"DGB4090003011": True},
         "registrations": [
             # 동명면행정복지센터
             {"city_code": "37390", "node_id": "CGB2142"},
@@ -41,9 +38,6 @@ DIRECTIONS = {
     # 학명리 쪽에서 동명면 쪽으로 가는 버스 ("학명리 건너2" 정류소)
     "dongmyeong": {
         "label": "동명방향",
-        "destination_keywords": ["동명"],
-        # TAGO에 경유정류소가 비어있음 — 사용자 확인(2026-10-22)으로 학명리 경유
-        "route_overrides": {"DGB4090003011": True},
         "registrations": [
             {"city_code": "37390", "node_id": "CGB2479"},
             {"city_code": "37050", "node_id": "GMB2479"},
@@ -51,3 +45,20 @@ DIRECTIONS = {
         ],
     },
 }
+
+
+# 칠곡 BIS "학명리 건너2" 정류장 노선 목록(사용자 제공, 2026-10-21) + 칠곡3 경로 확인(사용자, 2026-10-22)
+ALLOWED_ROUTENOS = {"885", "300", "34", "34-1", "36", "36-1", "9-3", "급행9-3"}
+# 칠곡3은 경로별로 노선ID가 다르고, 경운대/예술대/하판 경유만 학명리를 지난다 (기성 경유, 동명-칠곡시장-동명은 안 감)
+ALLOWED_CHILGOK3_ROUTEIDS = {
+    "DGB4090003001",  # 칠곡3[동명-칠곡시장-동명-예술대-경운대-동명]
+    "DGB4090003011",  # 칠곡3[동명-칠곡시장-동명-경운대-동명]
+    "DGB4090003014",  # 칠곡3[동명-칠곡시장-동명-경운대-예술대-동명]
+    "DGB4090003015",  # 칠곡3[동명-칠곡시장-동명-하판]
+}
+
+
+def is_allowed(routeid: str, routeno: str) -> bool:
+    if routeno == "칠곡3":
+        return routeid in ALLOWED_CHILGOK3_ROUTEIDS
+    return routeno in ALLOWED_ROUTENOS

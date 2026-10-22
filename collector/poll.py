@@ -8,9 +8,8 @@ from pathlib import Path
 
 import requests
 
-from collector.config import DIRECTIONS
+from collector.config import DIRECTIONS, is_allowed
 from collector.rebuild import rebuild_all
-from collector.route_filter import RouteCache, fetch_route_stops, route_goes_toward
 from collector.tago_client import TagoApiError, get_arrivals
 
 # Korea has no DST, so a fixed offset avoids needing the tzdata package on Windows.
@@ -41,7 +40,7 @@ def _call_with_retry(call, sleep, state):
     """Run `call()` with retries. Returns (result, exception_or_None).
 
     `state["waited"]` is the time slept since the previous API call, so that any
-    two consecutive calls (arrivals or route lookups) are at least
+    two consecutive arrival calls are at least
     MIN_CALL_SPACING apart (backoff counts).
     """
     last_exc = None
@@ -66,30 +65,16 @@ def _error_text(exc, service_key):
     return f"{type(exc).__name__}: {_scrub(str(exc), service_key)}"
 
 
-def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep, fetch_stops=None) -> None:
+def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep) -> None:
     if not is_within_collection_window(now_kst):
         return
-    if fetch_stops is None:
-        fetch_stops = fetch_route_stops
     data_dir = Path(data_dir)
     polled_at = now_kst.isoformat(timespec="seconds")
     day = now_kst.date().isoformat()
     state = {"called": False, "waited": 0.0}
-    cache = RouteCache(data_dir / "route_cache.json", today=now_kst.date())
-    failed_lookups: dict[tuple[str, str], Exception] = {}
     latest: dict[str, dict] = {}
 
-    def retrying_fetch(key, city, route):
-        stops, exc = _call_with_retry(lambda: fetch_stops(key, city, route), sleep, state)
-        if exc is not None:
-            raise exc
-        return stops
-
     for direction, cfg in directions.items():
-        keywords = cfg["destination_keywords"]
-        overrides = cfg.get("route_overrides", {})
-        warnings: list[dict] = []
-        warned: set[tuple[str, str]] = set()
         annotated: list[dict] = []
         errors: list[dict] = []
         for reg in cfg["registrations"]:
@@ -100,43 +85,10 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep, fetch
                                "error": _error_text(exc, service_key)})
                 continue
             for o in obs_list:
-                lookup = (reg["city_code"], o.routeid)
-                if o.routeid in overrides:
-                    annotated.append({
-                        "routeid": o.routeid, "routeno": o.routeno, "eta_min": o.eta_min,
-                        "city_code": reg["city_code"], "node_id": reg["node_id"],
-                        "toward": bool(overrides[o.routeid]),
-                    })
-                    continue
-                stops = None
-                if lookup in failed_lookups:
-                    lookup_exc = failed_lookups[lookup]
-                else:
-                    lookup_exc = None
-                    try:
-                        stops = cache.get_stops(service_key, reg["city_code"], o.routeid,
-                                                fetch=retrying_fetch)
-                    except RETRYABLE as e:
-                        lookup_exc = failed_lookups[lookup] = e
-                if lookup_exc is not None:
-                    # Unknown route shape: report it, never silently mark toward=False.
-                    errors.append({"city_code": reg["city_code"], "node_id": reg["node_id"],
-                                   "route_id": o.routeid, "error": _error_text(lookup_exc, service_key)})
-                    continue
-                if stops:
-                    toward = route_goes_toward(stops, reg["node_id"], keywords)
-                else:
-                    # Empty stop list is a data gap in TAGO: unknown, warn, never count.
-                    toward = None
-                    if lookup not in warned:
-                        warned.add(lookup)
-                        warnings.append({"city_code": reg["city_code"], "node_id": reg["node_id"],
-                                         "route_id": o.routeid, "routeno": o.routeno,
-                                         "warning": "empty route stop list"})
                 annotated.append({
                     "routeid": o.routeid, "routeno": o.routeno, "eta_min": o.eta_min,
                     "city_code": reg["city_code"], "node_id": reg["node_id"],
-                    "toward": toward,
+                    "toward": is_allowed(o.routeid, o.routeno),
                 })
         best: dict[str, dict] = {}
         for o in annotated:
@@ -148,8 +100,7 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep, fetch
         kept = list(best.values()) + [o for o in annotated if o["toward"] is not True]
         out_dir = data_dir / "observations" / direction
         out_dir.mkdir(parents=True, exist_ok=True)
-        record = {"polled_at": polled_at, "observations": kept, "errors": errors,
-                  "warnings": warnings}
+        record = {"polled_at": polled_at, "observations": kept, "errors": errors}
         with (out_dir / f"{day}.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
         latest[direction] = {
@@ -158,10 +109,8 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep, fetch
                 {"routeid": o["routeid"], "routeno": o["routeno"], "eta_min": o["eta_min"]}
                 for o in best.values()],
             "errors": errors,
-            "warnings": warnings,
         }
 
-    cache.save()
     (data_dir / "latest.json").write_text(
         json.dumps(latest, ensure_ascii=False, indent=2), encoding="utf-8")
     rebuild_all(data_dir, as_of=now_kst.date(), directions=directions)
