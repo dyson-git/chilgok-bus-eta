@@ -1,0 +1,15 @@
+{
+  "name": "칠곡 버스 도착",
+  "short_name": "버스도착",
+  "description": "칠곡군 동명면 방향별 버스 도착 시간 통계와 실시간 접근 버스",
+  "lang": "ko",
+  "display": "standalone",
+  "start_url": "./",
+  "scope": "./",
+  "theme_color": "#1565c0",
+  "background_color": "#ffffff",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}
