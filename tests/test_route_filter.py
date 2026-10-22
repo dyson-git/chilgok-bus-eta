@@ -180,3 +180,9 @@ def test_empty_stop_list_is_cached_not_treated_as_failure(tmp_path):
     assert c2.get_stops("k", "22", "R", fetch=lambda *a: pytest.fail("fetched")) == []
     c3 = RouteCache(path, today=date(2026, 11, 5))  # past max age: re-checked
     assert c3.get_stops("k", "22", "R", fetch=lambda *a: R3) == R3
+
+
+def test_chilgok3_gyeongun_variant_is_overridden_toward_in_both_directions():
+    from collector.config import DIRECTIONS
+    for d in ("hakmyeong", "dongmyeong"):
+        assert DIRECTIONS[d]["route_overrides"]["DGB4090003011"] is True

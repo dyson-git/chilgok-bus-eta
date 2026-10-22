@@ -18,7 +18,8 @@ DIRECTIONS = {
     "hakmyeong": {
         "label": "학명리방향",
         "destination_keywords": ["학명"],
-        "route_overrides": {},  # {routeid: True/False} manual toward override
+        # TAGO에 경유정류소가 비어있음 — 사용자 확인(2026-10-22)으로 학명리 경유
+        "route_overrides": {"DGB4090003011": True},
         "registrations": [
             # 동명면행정복지센터
             {"city_code": "37390", "node_id": "CGB2142"},
@@ -41,7 +42,8 @@ DIRECTIONS = {
     "dongmyeong": {
         "label": "동명방향",
         "destination_keywords": ["동명"],
-        "route_overrides": {},  # {routeid: True/False} manual toward override
+        # TAGO에 경유정류소가 비어있음 — 사용자 확인(2026-10-22)으로 학명리 경유
+        "route_overrides": {"DGB4090003011": True},
         "registrations": [
             {"city_code": "37390", "node_id": "CGB2479"},
             {"city_code": "37050", "node_id": "GMB2479"},
