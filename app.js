@@ -9,9 +9,16 @@ function esc(s) {
 }
 
 // ETA 분(실수) -> 표시 문자열. 경과시간 차감 없음.
+function validEta(v) {
+  // Number(null) and Number("") are 0, which would wrongly read as "곧 도착".
+  if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) return false;
+  if (typeof v !== "number" && typeof v !== "string") return false;
+  return isFinite(Number(v));
+}
+
 function formatEta(etaMin) {
+  if (!validEta(etaMin)) return "도착 시간 알 수 없음";
   var n = Number(etaMin);
-  if (!isFinite(n)) return "도착 시간 알 수 없음";
   if (n < 1) return "곧 도착";
   return "약 " + Math.round(n) + "분 후 도착";
 }
@@ -42,7 +49,8 @@ function renderLive(entry, nowMs) {
   } else {
     html += '<p class="muted">' + age + '분 전 기준</p>';
   }
-  var obs = (entry.observations || []).slice().sort(function (a, b) { return a.eta_min - b.eta_min; });
+  var obs = (entry.observations || []).filter(function (o) { return validEta(o.eta_min); })
+    .sort(function (a, b) { return Number(a.eta_min) - Number(b.eta_min); });
   var hasErr = !!(entry.errors && entry.errors.length > 0);
   if (hasErr) html += '<div class="notice error">조회 오류 — 이번 수집에서는 확인하지 못함</div>';
   if (obs.length) {
@@ -63,12 +71,14 @@ function renderAll(state, nowMs) {
   var latestEntry = state.latest ? state.latest[d] : null;
   return {
     timetable: "<h2>" + DIR_LABELS[d] + " 시간표</h2>" + statsHtml,
-    live: "<h2>" + DIR_LABELS[d] + " 지금 접근 중</h2>" + renderLive(latestEntry, nowMs)
+    live: "<h2>" + DIR_LABELS[d] + " 지금 접근 중</h2>" +
+      (state.refreshFailed ? '<div class="notice error">새로고침 실패 — 이전 데이터 표시 중</div>' : "") +
+      renderLive(latestEntry, nowMs)
   };
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { formatEta: formatEta, ageMinutes: ageMinutes, renderStats: renderStats, renderLive: renderLive, renderAll: renderAll };
+  module.exports = { validEta: validEta, formatEta: formatEta, ageMinutes: ageMinutes, renderStats: renderStats, renderLive: renderLive, renderAll: renderAll };
 }
 
 if (typeof document !== "undefined") {
@@ -87,16 +97,21 @@ if (typeof document !== "undefined") {
       });
     }
 
+    // Resolves { data } on success, { missing: true } on 404, { failed: true } otherwise.
     function getJson(url) {
       return fetch(url, { cache: "no-store" }).then(function (r) {
-        return r.ok ? r.json() : null;
-      }).catch(function () { return null; });
+        if (r.status === 404) return { missing: true };
+        if (!r.ok) return { failed: true };
+        return r.json().then(function (data) { return { data: data }; });
+      }).catch(function () { return { failed: true }; });
     }
 
     function load() {
       return Promise.all([getJson("data/stats.json"), getJson("data/latest.json")]).then(function (res) {
-        state.stats = res[0];
-        state.latest = res[1];
+        var failed = false;
+        if (res[0].failed) failed = true; else state.stats = res[0].missing ? null : res[0].data;
+        if (res[1].failed) failed = true; else state.latest = res[1].missing ? null : res[1].data;
+        state.refreshFailed = failed;
         draw();
       });
     }
