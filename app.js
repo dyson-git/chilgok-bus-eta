@@ -166,15 +166,13 @@ if (typeof module !== "undefined" && module.exports) {
 if (typeof document !== "undefined") {
   (function () {
     var state = { dir: "hakmyeong", stats: null, latest: null, live: null, liveLoading: true };
-    var TAGO_URL = "https://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList";
-    var MAX_INFLIGHT = 3, MAX_ATTEMPTS = 3;
+        var MAX_INFLIGHT = 3, MAX_ATTEMPTS = 3;
     var liveSeq = 0;
 
     function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-    function fetchReg(key, reg) {
-      var url = TAGO_URL + "?serviceKey=" + encodeURIComponent(key) + "&cityCode=" + encodeURIComponent(reg.city_code) +
-        "&nodeId=" + encodeURIComponent(reg.node_id) + "&numOfRows=100&_type=json";
+    function fetchReg(relayUrl, reg) {
+      var url = relayUrl + "/arrivals?city=" + encodeURIComponent(reg.city_code) + "&node=" + encodeURIComponent(reg.node_id);
       function attempt(n) {
         return fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); })
           .then(parseArrivals)
@@ -189,13 +187,13 @@ if (typeof document !== "undefined") {
     // Resolves { observations, errors, queriedAt } or null if every registration failed / no config.
     function fetchLive(dir) {
       var cfg = window.LIVE_CONFIG;
-      if (!cfg || !cfg.serviceKey || !cfg.directions || !cfg.directions[dir]) return Promise.resolve(null);
+      if (!cfg || !cfg.relayUrl || !cfg.directions || !cfg.directions[dir]) return Promise.resolve(null);
       var dirCfg = cfg.directions[dir];
       var regs = dirCfg.registrations, all = [], errors = [], next = 0;
       function worker() {
         if (next >= regs.length) return Promise.resolve();
         var reg = regs[next++];
-        return fetchReg(cfg.serviceKey, reg).then(function (list) { all = all.concat(list); })
+        return fetchReg(cfg.relayUrl, reg).then(function (list) { all = all.concat(list); })
           .catch(function () { errors.push({ city_code: reg.city_code, node_id: reg.node_id }); })
           .then(worker);
       }

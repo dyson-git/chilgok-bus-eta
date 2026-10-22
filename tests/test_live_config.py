@@ -7,10 +7,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import gen_live_config  # noqa: E402
-import pytest  # noqa: E402
-
-# live-config.js는 키가 들어 있어 커밋하지 않는다(.gitignore). 없으면 건너뛴다.
-pytestmark = pytest.mark.skipif(not (ROOT / "live-config.js").exists(), reason="live-config.js 없음(로컬 생성 전용)")
+from collector import config  # noqa: E402
 
 
 def _load():
@@ -25,6 +22,17 @@ def test_live_config_matches_collector_config():
     assert cfg["directions"] == gen_live_config.build_directions()
 
 
-def test_live_config_has_nonblank_key():
-    key = _load()["serviceKey"]
-    assert key and key == key.strip()
+def test_live_config_has_no_key():
+    text = (ROOT / "live-config.js").read_text(encoding="utf-8")
+    assert "serviceKey" not in text
+    assert not re.search(r"[A-Za-z0-9+/=%]{80,}", text)
+    assert _load()["relayUrl"].startswith("https://")
+
+
+def test_worker_allowlist_matches_collector_config():
+    js = (ROOT / "worker" / "relay.js").read_text(encoding="utf-8")
+    block = re.search(r"ALLOWED_NODES\s*=\s*new Set\(\[(.*?)\]\)", js, re.S).group(1)
+    nodes = set(re.findall(r'"([^"]+:[^"]+)"', block))
+    expected = {f"{r['city_code']}:{r['node_id']}"
+                for d in config.DIRECTIONS.values() for r in d["registrations"]}
+    assert nodes == expected
