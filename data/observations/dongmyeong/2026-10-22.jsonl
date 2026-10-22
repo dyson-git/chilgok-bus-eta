@@ -54,3 +54,4 @@
 {"polled_at": "2026-10-22T16:10:06+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 2.35, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
 {"polled_at": "2026-10-22T16:15:06+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-22T16:20:07+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-22T16:25:06+09:00", "observations": [], "errors": []}
