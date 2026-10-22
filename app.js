@@ -88,7 +88,10 @@ function renderReference(tt) {
       if (t.arrive) return '<div class="trip">' + esc(t.from) + ' <b>' + esc(t.depart) + '</b> → ' + esc(t.to) + ' ' + esc(t.arrive) + v + '</div>';
       return '<div class="trip">' + esc(t.from) + ' <b>' + esc(t.depart) + '</b> 출발 → ' + esc(t.to) + v + '</div>';
     }).join("");
-    return '<div class="rt"><div><b>' + esc(r.routeno) + '번</b> <span class="muted">' + esc(r.path) + '</span>' + (r.source ? '<br><small class="muted">' + esc(r.source) + '</small>' : '') + '</div>' + trips + '</div>';
+    var stops = (r.stop_times || []).map(function (s) {
+      return '<div class="trip">' + esc(s.stop) + ' (' + esc(s.direction) + ') 통과: ' + (s.times || []).map(esc).join(", ") + '</div>';
+    }).join("");
+    return '<div class="rt"><div><b>' + esc(r.routeno) + '번</b> <span class="muted">' + esc(r.path) + '</span>' + (r.source ? '<br><small class="muted">' + esc(r.source) + '</small>' : '') + '</div>' + trips + stops + '</div>';
   }).join("");
   if (Array.isArray(tt.missing) && tt.missing.length) {
     html += '<p class="muted">시간표 없음: ' + tt.missing.map(esc).join(", ") + '</p>';
