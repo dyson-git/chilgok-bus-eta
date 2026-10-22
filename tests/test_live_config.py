@@ -36,3 +36,8 @@ def test_worker_allowlist_matches_collector_config():
     expected = {f"{r['city_code']}:{r['node_id']}"
                 for d in config.DIRECTIONS.values() for r in d["registrations"]}
     assert nodes == expected
+
+
+def test_worker_has_all_route():
+    js = (ROOT / "worker" / "relay.js").read_text(encoding="utf-8")
+    assert '"/all"' in js and "Promise.allSettled" in js

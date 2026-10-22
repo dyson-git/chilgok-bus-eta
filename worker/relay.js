@@ -3,6 +3,7 @@
 // 등록된 정류장만 허용해 남이 이 중계를 다른 용도로 쓰지 못하게 한다.
 //
 //   GET /arrivals?city=37390&node=CGB2479   → TAGO 원본 JSON
+//   GET /all                                → 허용된 모든 정류소를 한 번에 조회 {fetched_at, results}
 //   GET /bis?stop=2479                      → 칠곡 BIS 정류장 도착정보 HTML (비교용)
 
 const ALLOWED_ORIGINS = [
@@ -29,6 +30,17 @@ function cors(origin) {
   return h;
 }
 
+const TAGO_URL = "https://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList";
+
+async function fetchNode(key, id) {
+  const [city, node] = id.split(":");
+  const q = new URLSearchParams({
+    serviceKey: key.trim(), cityCode: city, nodeId: node, numOfRows: "100", _type: "json",
+  });
+  const r = await fetch(TAGO_URL + "?" + q);
+  return await r.json();
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -50,6 +62,23 @@ export default {
       const r = await fetch("https://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList?" + q);
       return new Response(await r.text(), {
         status: r.status,
+        headers: { ...headers, "Content-Type": "application/json; charset=utf-8" },
+      });
+    }
+
+    if (url.pathname === "/all") {
+      if (!env.TAGO_SERVICE_KEY) return new Response("TAGO_SERVICE_KEY not set", { status: 500, headers });
+      const ids = [...ALLOWED_NODES];
+      const settled = await Promise.allSettled(ids.map((id) => fetchNode(env.TAGO_SERVICE_KEY, id)));
+      const results = {};
+      ids.forEach((id, i) => {
+        const s = settled[i];
+        results[id] = s.status === "fulfilled"
+          ? { ok: true, body: s.value }
+          : { ok: false, error: String((s.reason && s.reason.message) || s.reason) };
+      });
+      return new Response(JSON.stringify({ fetched_at: new Date().toISOString(), results }), {
+        status: 200,
         headers: { ...headers, "Content-Type": "application/json; charset=utf-8" },
       });
     }

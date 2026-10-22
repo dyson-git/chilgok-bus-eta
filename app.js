@@ -1,6 +1,10 @@
 "use strict";
-var DIR_LABELS = { hakmyeong: "동명 출발 (학명리행)", dongmyeong: "학명리 출발 (동명행)" };
-var STALE_MIN = 15;
+// 카드 순서: 동명 가는 버스 = 키 dongmyeong(학명리 건너2에서 탑승), 학명리 가는 버스 = 키 hakmyeong
+var DIRS = ["dongmyeong", "hakmyeong"];
+var CARD_INFO = {
+  dongmyeong: { title: "동명 가는 버스", sub: "학명리 건너2 정류장에서 타기" },
+  hakmyeong: { title: "학명리 가는 버스", sub: "동명 정류장(행정복지센터·우체국·동명교통)에서 타기" }
+};
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, function (c) {
@@ -8,7 +12,6 @@ function esc(s) {
   });
 }
 
-// ETA 분(실수) -> 표시 문자열. 경과시간 차감 없음.
 function validEta(v) {
   // Number(null) and Number("") are 0, which would wrongly read as "곧 도착".
   if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) return false;
@@ -17,50 +20,10 @@ function validEta(v) {
 }
 
 function formatEta(etaMin) {
-  if (!validEta(etaMin)) return "도착 시간 알 수 없음";
+  if (!validEta(etaMin)) return "알 수 없음";
   var n = Number(etaMin);
   if (n < 1) return "곧 도착";
-  return "약 " + Math.round(n) + "분 후 도착";
-}
-
-function ageMinutes(polledAt, nowMs) {
-  var t = Date.parse(polledAt);
-  if (isNaN(t)) return null;
-  return Math.max(0, Math.floor((nowMs - t) / 60000));
-}
-
-function renderStats(rows) {
-  if (!rows || !rows.length) return '<p class="muted">통계 준비 중 (데이터 수집 중)</p>';
-  return rows.map(function (r) {
-    return '<div class="row"><span>' + esc(r.slot_index) + '번째 차 <b>' + esc(r.avg_time) +
-      '</b></span><span class="range">' + esc(r.min_time) + '~' + esc(r.max_time) +
-      ' (표본 ' + esc(r.sample_count) + '일)</span></div>';
-  }).join("");
-}
-
-function renderLive(entry, nowMs) {
-  if (!entry) return '<p class="muted">아직 수집된 데이터가 없음</p>';
-  var html = "";
-  var age = ageMinutes(entry.polled_at, nowMs);
-  if (age === null) {
-    html += '<div class="notice stale">수집 시각을 알 수 없음</div>';
-  } else if (age > STALE_MIN) {
-    html += '<div class="notice stale">' + age + '분 전 데이터 — 수집 시간(06:00–21:30) 외이거나 지연</div>';
-  } else {
-    html += '<p class="muted">' + age + '분 전 기준</p>';
-  }
-  var obs = (entry.observations || []).filter(function (o) { return validEta(o.eta_min); })
-    .sort(function (a, b) { return Number(a.eta_min) - Number(b.eta_min); });
-  var hasErr = !!(entry.errors && entry.errors.length > 0);
-  if (hasErr) html += '<div class="notice error">조회 오류 — 이번 수집에서는 확인하지 못함</div>';
-  if (obs.length) {
-    html += obs.map(function (o) {
-      return '<div class="row bus"><span><b>' + esc(o.routeno) + '번</b></span><span>' + esc(formatEta(o.eta_min)) + '</span></div>';
-    }).join("");
-  } else if (!hasErr) {
-    html += '<p>지금 접근 중인 버스 없음</p>';
-  }
-  return html;
+  return Math.round(n) + "분 뒤";
 }
 
 // collector/config.py is_allowed 의 정확한 JS 포트 (순수 함수). dirCfg = LIVE_CONFIG.directions[dir]
@@ -100,40 +63,73 @@ function selectArrivals(all, dirCfg) {
     .sort(function (a, b) { return a.eta_min - b.eta_min; });
 }
 
-function pad2(n) { return (n < 10 ? "0" : "") + n; }
-function clockText(ms) {
-  var d = new Date(ms);
-  return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+// byKey: { "city:node": {ok:true, list:[...]} | {ok:false} }  ->  { observations, errors } or null(전부 실패)
+function buildDirection(dirCfg, byKey) {
+  var all = [], errors = 0, total = dirCfg.registrations.length;
+  dirCfg.registrations.forEach(function (r) {
+    var e = byKey[r.city_code + ":" + r.node_id];
+    if (e && e.ok) all = all.concat(e.list); else errors++;
+  });
+  if (errors >= total) return null;
+  return { observations: selectArrivals(all, dirCfg), errors: errors };
 }
 
-// live = { observations, errors, queriedAt }  (실시간 직접 조회 결과)
-function renderLiveResult(live) {
-  var html = '<p class="muted">실시간 (방금 조회) ' + esc(clockText(live.queriedAt)) + '</p>';
-  var hasErr = live.errors.length > 0;
-  if (hasErr) html += '<div class="notice error">조회 오류 — 일부 정류소를 확인하지 못함</div>';
-  if (live.observations.length) {
-    html += live.observations.map(function (o) {
-      return '<div class="row bus"><span><b>' + esc(o.routeno) + '번</b></span><span>' + esc(formatEta(o.eta_min)) + '</span></div>';
+// /all 응답 -> byKey
+function parseAllResponse(resp) {
+  var byKey = {};
+  var results = (resp && resp.results) || {};
+  Object.keys(results).forEach(function (k) {
+    var r = results[k];
+    if (!r || !r.ok) { byKey[k] = { ok: false }; return; }
+    try { byKey[k] = { ok: true, list: parseArrivals(r.body) }; } catch (e) { byKey[k] = { ok: false }; }
+  });
+  return byKey;
+}
+
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function clockHM(ms) {
+  var d = new Date(ms);
+  return pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+}
+
+// res = { observations, errors, snapshotAt? } | null
+function renderCard(dir, res) {
+  var info = CARD_INFO[dir];
+  var html = "<h2>" + esc(info.title) + '</h2><p class="sub">' + esc(info.sub) + "</p>";
+  if (!res) return html + '<p class="note">확인 중…</p>';
+  if (res.snapshotAt) html += '<p class="note">지금은 실시간 정보를 못 받아 ' + esc(res.snapshotAt) + ' 기록을 보여드려요</p>';
+  var hasErr = res.errors > 0;
+  if (hasErr) html += '<div class="warn">일부 정보를 못 받았어요</div>';
+  if (res.observations.length) {
+    html += res.observations.map(function (o) {
+      return '<div class="bus"><span>' + esc(o.routeno) + '번</span><span class="when">' + esc(formatEta(o.eta_min)) + "</span></div>";
     }).join("");
   } else if (!hasErr) {
-    html += '<p>지금 접근 중인 버스 없음</p>';
+    html += '<div class="none">지금 오는 버스 없음</div>';
   }
   return html;
 }
 
-function renderAll(state, nowMs) {
-  var d = state.dir;
-  var statsHtml = state.stats === null
-    ? '<p class="muted">아직 수집된 데이터가 없음</p>'
-    : renderStats(state.stats[d]);
-  var latestEntry = state.latest ? state.latest[d] : null;
-  return {
-    timetable: "<h2>" + DIR_LABELS[d] + " — 시간표</h2>" + statsHtml,
-    live: "<h2>" + DIR_LABELS[d] + " — 접근 중인 버스</h2>" +
-      (state.refreshFailed ? '<div class="notice error">새로고침 실패 — 이전 데이터 표시 중</div>' : "") +
-      (state.live ? renderLiveResult(state.live)
-        : state.liveLoading ? '<p class="muted">실시간 조회 중…</p>' : renderLive(latestEntry, nowMs))
-  };
+var CHEVRON_DOWN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9l7 7 7-7"/></svg>';
+var CHEVRON_UP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg>';
+
+function renderSlots(rows) {
+  if (!rows || !rows.length) return '<p class="note">아직 기록이 모이는 중이에요</p>';
+  return rows.map(function (r) {
+    return '<div class="slot"><div class="avg">평균 ' + esc(r.avg_time) + '</div>' +
+      '<div class="rng">가장 빠름 ' + esc(r.min_time) + '</div>' +
+      '<div class="rng">가장 늦음 ' + esc(r.max_time) + '</div>' +
+      '<small>(' + esc(r.sample_count) + '일 기록)</small></div>';
+  }).join("");
+}
+
+function renderFold(dir, stats, open) {
+  var label = CARD_INFO[dir].title + " 시간표";
+  var rows = stats ? stats[dir] : null;
+  return '<div class="fold"><button type="button" data-fold="' + dir + '" aria-expanded="' + (open ? "true" : "false") + '">' +
+    "<span>" + (open ? "접기" : esc(label)) + "</span>" + (open ? CHEVRON_UP : CHEVRON_DOWN) + "</button>" +
+    (open ? '<div class="body">' + renderSlots(rows) + "</div>" : "") +
+    "</div>";
 }
 
 // 기점·종점 기준 참고 시간표. 변환·보정 없이 원본 시각 그대로 표시한다.
@@ -160,64 +156,31 @@ function renderReference(tt) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { isAllowed: isAllowed, parseArrivals: parseArrivals, selectArrivals: selectArrivals, renderLiveResult: renderLiveResult, validEta: validEta, formatEta: formatEta, ageMinutes: ageMinutes, renderStats: renderStats, renderLive: renderLive, renderAll: renderAll, renderReference: renderReference };
+  module.exports = { isAllowed: isAllowed, parseArrivals: parseArrivals, selectArrivals: selectArrivals, buildDirection: buildDirection, parseAllResponse: parseAllResponse, renderCard: renderCard, renderSlots: renderSlots, renderFold: renderFold, validEta: validEta, formatEta: formatEta, renderReference: renderReference };
 }
 
 if (typeof document !== "undefined") {
   (function () {
-    var state = { dir: "hakmyeong", stats: null, latest: null, live: null, liveLoading: true };
-        var MAX_INFLIGHT = 3, MAX_ATTEMPTS = 3;
-    var liveSeq = 0;
+    var state = { stats: null, latest: null, res: { dongmyeong: null, hakmyeong: null },
+      checkedAt: null, loading: false, open: {}, refOpen: false };
+    var MAX_INFLIGHT = 3, MAX_ATTEMPTS = 3;
+    var elRefresh = document.getElementById("refresh");
+    var elChecked = document.getElementById("checked");
+    var elFolds = document.getElementById("folds");
+
+    function drawCards() {
+      DIRS.forEach(function (d) {
+        document.getElementById("card-" + d).innerHTML = renderCard(d, state.res[d]);
+      });
+      elRefresh.disabled = state.loading;
+      elRefresh.textContent = state.loading ? "확인 중…" : "새로고침";
+      elChecked.textContent = state.checkedAt ? "마지막 확인 " + clockHM(state.checkedAt) : "";
+    }
+    function drawFolds() {
+      elFolds.innerHTML = DIRS.map(function (d) { return renderFold(d, state.stats, !!state.open[d]); }).join("");
+    }
 
     function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-
-    function fetchReg(relayUrl, reg) {
-      var url = relayUrl + "/arrivals?city=" + encodeURIComponent(reg.city_code) + "&node=" + encodeURIComponent(reg.node_id);
-      function attempt(n) {
-        return fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); })
-          .then(parseArrivals)
-          .catch(function (e) {
-            if (n >= MAX_ATTEMPTS) throw e;
-            return sleep(n * 1000).then(function () { return attempt(n + 1); });
-          });
-      }
-      return attempt(1);
-    }
-
-    // Resolves { observations, errors, queriedAt } or null if every registration failed / no config.
-    function fetchLive(dir) {
-      var cfg = window.LIVE_CONFIG;
-      if (!cfg || !cfg.relayUrl || !cfg.directions || !cfg.directions[dir]) return Promise.resolve(null);
-      var dirCfg = cfg.directions[dir];
-      var regs = dirCfg.registrations, all = [], errors = [], next = 0;
-      function worker() {
-        if (next >= regs.length) return Promise.resolve();
-        var reg = regs[next++];
-        return fetchReg(cfg.relayUrl, reg).then(function (list) { all = all.concat(list); })
-          .catch(function () { errors.push({ city_code: reg.city_code, node_id: reg.node_id }); })
-          .then(worker);
-      }
-      var workers = [];
-      for (var i = 0; i < Math.min(MAX_INFLIGHT, regs.length); i++) workers.push(worker());
-      return Promise.all(workers).then(function () {
-        if (errors.length >= regs.length) return null;
-        return { observations: selectArrivals(all, dirCfg), errors: errors, queriedAt: Date.now() };
-      });
-    }
-    var elT = document.getElementById("timetable");
-    var elL = document.getElementById("live");
-    var buttons = document.querySelectorAll(".dirs button");
-
-    function draw() {
-      var out = renderAll(state, Date.now());
-      elT.innerHTML = out.timetable;
-      elL.innerHTML = out.live;
-      Array.prototype.forEach.call(buttons, function (b) {
-        b.setAttribute("aria-pressed", String(b.dataset.dir === state.dir));
-      });
-    }
-
-    // Resolves { data } on success, { missing: true } on 404, { failed: true } otherwise.
     function getJson(url) {
       var bust = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
       return fetch(bust, { cache: "no-store" }).then(function (r) {
@@ -226,24 +189,105 @@ if (typeof document !== "undefined") {
         return r.json().then(function (data) { return { data: data }; });
       }).catch(function () { return { failed: true }; });
     }
+    function retrying(fn, maxAttempts) {
+      function attempt(n) {
+        return fn().catch(function (e) {
+          if (n >= maxAttempts) throw e;
+          return sleep(n * 1000).then(function () { return attempt(n + 1); });
+        });
+      }
+      return attempt(1);
+    }
 
+    function cfg() {
+      var c = window.LIVE_CONFIG;
+      return c && c.relayUrl && c.directions ? c : null;
+    }
+
+    // 1순위: 중계 /all 한 번으로 전부. 실패하면 null.
+    function fetchAll(c) {
+      return retrying(function () {
+        return fetch(c.relayUrl + "/all", { cache: "no-store" }).then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        }).then(function (j) {
+          if (!j || !j.results) throw new Error("bad /all");
+          return parseAllResponse(j);
+        });
+      }, 2).catch(function () { return null; });
+    }
+
+    // 2순위: 정류소별 /arrivals (동시 3개)
+    function fetchEach(c) {
+      var seen = {}, regs = [];
+      DIRS.forEach(function (d) {
+        ((c.directions[d] || {}).registrations || []).forEach(function (r) {
+          var k = r.city_code + ":" + r.node_id;
+          if (!seen[k]) { seen[k] = 1; regs.push(r); }
+        });
+      });
+      var byKey = {}, next = 0;
+      function worker() {
+        if (next >= regs.length) return Promise.resolve();
+        var reg = regs[next++], k = reg.city_code + ":" + reg.node_id;
+        var url = c.relayUrl + "/arrivals?city=" + encodeURIComponent(reg.city_code) + "&node=" + encodeURIComponent(reg.node_id);
+        return retrying(function () {
+          return fetch(url, { cache: "no-store" }).then(function (r) { return r.json(); }).then(parseArrivals);
+        }, MAX_ATTEMPTS).then(function (list) { byKey[k] = { ok: true, list: list }; })
+          .catch(function () { byKey[k] = { ok: false }; })
+          .then(worker);
+      }
+      var ws = [];
+      for (var i = 0; i < Math.min(MAX_INFLIGHT, regs.length); i++) ws.push(worker());
+      return Promise.all(ws).then(function () { return byKey; });
+    }
+
+    function snapshot(dir) {
+      var e = state.latest && state.latest[dir];
+      if (!e) return null;
+      var t = Date.parse(e.polled_at);
+      var obs = (e.observations || []).filter(function (o) { return validEta(o.eta_min); })
+        .sort(function (a, b) { return Number(a.eta_min) - Number(b.eta_min); });
+      return { observations: obs, errors: (e.errors && e.errors.length) || 0, snapshotAt: isNaN(t) ? "이전" : clockHM(t) };
+    }
+
+    var seq = 0;
     function load() {
-      var dir = state.dir, seq = ++liveSeq;
-      return Promise.all([getJson("data/stats.json"), getJson("data/latest.json"), fetchLive(dir).catch(function () { return null; })]).then(function (res) {
-        if (seq !== liveSeq) return; // 그 사이 방향이 바뀌었거나 더 새 요청이 있음
-        state.live = res[2]; state.liveLoading = false;
-        var failed = false;
-        if (res[0].failed) failed = true; else state.stats = res[0].missing ? null : res[0].data;
-        if (res[1].failed) failed = true; else state.latest = res[1].missing ? null : res[1].data;
-        state.refreshFailed = failed && !state.live;
-        draw();
+      var my = ++seq;
+      state.loading = true;
+      drawCards();
+      var c = cfg();
+      var livePromise = c ? fetchAll(c).then(function (m) { return m || fetchEach(c); }) : Promise.resolve(null);
+      return Promise.all([livePromise, getJson("data/stats.json"), getJson("data/latest.json")]).then(function (res) {
+        if (my !== seq) return;
+        if (!res[1].failed) state.stats = res[1].missing ? null : res[1].data;
+        if (!res[2].failed) state.latest = res[2].missing ? null : res[2].data;
+        var byKey = res[0];
+        DIRS.forEach(function (d) {
+          var live = byKey && c.directions[d] ? buildDirection(c.directions[d], byKey) : null;
+          state.res[d] = live || snapshot(d) || { observations: [], errors: 1 };
+        });
+        state.checkedAt = Date.now();
+        state.loading = false;
+        drawCards();
+        drawFolds();
       });
     }
 
-    Array.prototype.forEach.call(buttons, function (b) {
-      b.addEventListener("click", function () { state.dir = b.dataset.dir; state.live = null; state.liveLoading = true; draw(); load(); });
+    elFolds.addEventListener("click", function (ev) {
+      var b = ev.target.closest("[data-fold]");
+      if (!b) return;
+      var d = b.getAttribute("data-fold");
+      state.open[d] = !state.open[d];
+      drawFolds();
     });
-    // 참고 시간표는 정적 데이터라 한 번만 불러온다. 없거나 실패하면 섹션을 숨긴 채 둔다.
+    elRefresh.addEventListener("click", load);
+    document.getElementById("refbtn").addEventListener("click", function () {
+      state.refOpen = !state.refOpen;
+      document.getElementById("refbody").hidden = !state.refOpen;
+      this.setAttribute("aria-expanded", String(state.refOpen));
+    });
+    // 참고 시간표는 정적 데이터라 한 번만 불러온다. 없거나 실패하면 숨긴 채 둔다.
     getJson("timetable.json").then(function (res) {
       var html = res.data ? renderReference(res.data) : "";
       if (!html) return;
@@ -251,9 +295,10 @@ if (typeof document !== "undefined") {
       document.getElementById("reference").hidden = false;
     });
 
-    document.getElementById("refresh").addEventListener("click", load);
+    // 1분마다 자동 새로고침 (화면이 보일 때만). 돌아오면 즉시 새로고침. 이전 결과는 계속 보인다.
     document.addEventListener("visibilitychange", function () { if (!document.hidden) load(); });
     setInterval(function () { if (!document.hidden) load(); }, 60000);
+    drawFolds();
     load();
   })();
 }
