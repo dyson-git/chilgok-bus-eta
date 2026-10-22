@@ -1,8 +1,7 @@
 name: poll
 
+# 정기 수집은 로컬 PC 작업 스케줄러(scripts/local_poll.ps1)가 담당. 이 워크플로는 수동 백업용.
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:

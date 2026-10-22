@@ -18,6 +18,13 @@ GitHub Actions(`.github/workflows/poll.yml`)가 5분마다 `python -m collector.
 결과는 `data/`에 저장되어 `main`에 자동 커밋된다. 저장소 시크릿 `TAGO_SERVICE_KEY`
 (TAGO 공공데이터 서비스키)가 필요하다.
 
+## 로컬 수집 (작업 스케줄러)
+
+정기 수집은 로컬 PC의 Windows 작업 스케줄러가 5분마다 `scripts/local_poll.ps1`을
+실행해 수행한다(pull → 수집 → `data/` 커밋 → `main`에 push). 서비스키는 `TAGO_SERVICE_KEY`
+환경변수(사용자 범위)에서 읽는다. 로그는 `%LOCALAPPDATA%\chilgok-bus-eta\poll.log`.
+GitHub Actions 워크플로는 수동 실행(`workflow_dispatch`) 백업용이다.
+
 ## 테스트
 
 ```
