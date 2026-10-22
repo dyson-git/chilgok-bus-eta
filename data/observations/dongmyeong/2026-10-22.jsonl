@@ -13,3 +13,4 @@
 {"polled_at": "2026-10-22T12:00:06+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-22T12:05:06+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-22T12:10:06+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-22T12:15:06+09:00", "observations": [], "errors": [{"city_code": "37390", "node_id": "CGB2479", "error": "TagoApiError: TAGO API error: HTTP_ERROR (code: 04)"}, {"city_code": "37050", "node_id": "GMB2479", "error": "TagoApiError: TAGO API error: HTTP_ERROR (code: 04)"}]}
