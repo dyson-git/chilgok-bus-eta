@@ -313,21 +313,65 @@ def test_route_cache_written_once_without_key(tmp_path, monkeypatch):
         assert form not in text
 
 
-def test_empty_route_stop_list_is_an_error_not_toward_false(tmp_path, monkeypatch):
+def _empty_route_setup(monkeypatch, calls):
     monkeypatch.setattr("collector.poll.get_arrivals", _arrivals_by_node({
-        "N1": [ArrivalObservation("R", "93", 5.0)]}))
+        "N1": [ArrivalObservation("R", "93", 5.0)], "N2": [ArrivalObservation("R", "93", 4.0)]}))
     empty = {"response": {"header": {"resultCode": "00"}, "body": {"items": "", "totalCount": 0}}}
 
     class Resp:
         def json(self):
             return empty
 
-    monkeypatch.setattr("collector.route_filter.requests.get", lambda *a, **k: Resp())
+    def fake_get(*a, **k):
+        calls.append(1)
+        return Resp()
+
+    monkeypatch.setattr("collector.route_filter.requests.get", fake_get)
+
+
+def test_empty_route_is_unknown_with_warning_and_snapshot_kept(tmp_path, monkeypatch):
+    calls = []
+    _empty_route_setup(monkeypatch, calls)
     data = tmp_path / "data"
-    run_poll("k", _one_dir("N1"), dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
+    run_poll("k", _one_dir("N1", "N2"), dt(2026, 10, 21, 13, 0), data, sleep=FakeSleep())
     latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
-    assert latest["d"]["errors"] == [{"city_code": "22", "node_id": "N1", "route_id": "R",
-                                      "error": "TagoApiError: empty route stop list"}]
+    assert latest["d"]["errors"] == []
+    # deduped per (city, route) within the run
+    assert latest["d"]["warnings"] == [{"city_code": "22", "node_id": "N1", "route_id": "R",
+                                        "routeno": "93", "warning": "empty route stop list"}]
+    assert latest["d"]["observations"] == []
     rec = _lines(data / "observations" / "d" / "2026-10-21.jsonl")[0]
-    assert all(o.get("toward") is not False for o in rec["observations"])
-    assert "22:R" not in json.loads((data / "route_cache.json").read_text(encoding="utf-8"))
+    assert rec["warnings"] == latest["d"]["warnings"]
+    assert [o["toward"] for o in rec["observations"]] == [None, None]
+    # empty result is cached: a second run within 7 days makes no API call
+    assert len(calls) == 1
+    run_poll("k", _one_dir("N1", "N2"), dt(2026, 10, 21, 13, 5), data, sleep=FakeSleep())
+    assert len(calls) == 1
+    # rebuild kept the snapshots and counted no arrival
+    assert json.loads((data / "arrivals.json").read_text(encoding="utf-8"))["d"] == {}
+
+
+def test_warnings_key_always_present(tmp_path, monkeypatch):
+    monkeypatch.setattr("collector.poll.get_arrivals", lambda *a, **k: [])
+    data = tmp_path / "data"
+    _run("k", _one_dir("N1"), dt(2026, 10, 21, 13, 0), data)
+    assert json.loads((data / "latest.json").read_text(encoding="utf-8"))["d"]["warnings"] == []
+    assert _lines(data / "observations" / "d" / "2026-10-21.jsonl")[0]["warnings"] == []
+
+
+def test_route_override_wins_and_skips_lookup(tmp_path, monkeypatch):
+    monkeypatch.setattr("collector.poll.get_arrivals", _arrivals_by_node({
+        "N1": [ArrivalObservation("YES", "1", 3.0), ArrivalObservation("NO", "2", 2.0)]}))
+
+    def boom(*a):
+        raise AssertionError("no lookup expected")
+
+    cfg = _one_dir("N1")
+    cfg["d"]["route_overrides"] = {"YES": True, "NO": False}
+    data = tmp_path / "data"
+    _run("k", cfg, dt(2026, 10, 21, 13, 0), data, fetch_stops=boom)
+    latest = json.loads((data / "latest.json").read_text(encoding="utf-8"))
+    assert latest["d"]["observations"] == [{"routeid": "YES", "routeno": "1", "eta_min": 3.0}]
+    assert latest["d"]["warnings"] == [] and latest["d"]["errors"] == []
+    rec = _lines(data / "observations" / "d" / "2026-10-21.jsonl")[0]
+    assert {o["routeid"]: o["toward"] for o in rec["observations"]} == {"YES": True, "NO": False}

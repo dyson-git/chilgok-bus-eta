@@ -87,6 +87,9 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep, fetch
 
     for direction, cfg in directions.items():
         keywords = cfg["destination_keywords"]
+        overrides = cfg.get("route_overrides", {})
+        warnings: list[dict] = []
+        warned: set[tuple[str, str]] = set()
         annotated: list[dict] = []
         errors: list[dict] = []
         for reg in cfg["registrations"]:
@@ -98,6 +101,13 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep, fetch
                 continue
             for o in obs_list:
                 lookup = (reg["city_code"], o.routeid)
+                if o.routeid in overrides:
+                    annotated.append({
+                        "routeid": o.routeid, "routeno": o.routeno, "eta_min": o.eta_min,
+                        "city_code": reg["city_code"], "node_id": reg["node_id"],
+                        "toward": bool(overrides[o.routeid]),
+                    })
+                    continue
                 stops = None
                 if lookup in failed_lookups:
                     lookup_exc = failed_lookups[lookup]
@@ -113,22 +123,33 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep, fetch
                     errors.append({"city_code": reg["city_code"], "node_id": reg["node_id"],
                                    "route_id": o.routeid, "error": _error_text(lookup_exc, service_key)})
                     continue
+                if stops:
+                    toward = route_goes_toward(stops, reg["node_id"], keywords)
+                else:
+                    # Empty stop list is a data gap in TAGO: unknown, warn, never count.
+                    toward = None
+                    if lookup not in warned:
+                        warned.add(lookup)
+                        warnings.append({"city_code": reg["city_code"], "node_id": reg["node_id"],
+                                         "route_id": o.routeid, "routeno": o.routeno,
+                                         "warning": "empty route stop list"})
                 annotated.append({
                     "routeid": o.routeid, "routeno": o.routeno, "eta_min": o.eta_min,
                     "city_code": reg["city_code"], "node_id": reg["node_id"],
-                    "toward": route_goes_toward(stops, reg["node_id"], keywords),
+                    "toward": toward,
                 })
         best: dict[str, dict] = {}
         for o in annotated:
-            if not o["toward"]:
+            if o["toward"] is not True:
                 continue
             cur = best.get(o["routeid"])
             if cur is None or o["eta_min"] < cur["eta_min"]:
                 best[o["routeid"]] = o
-        kept = list(best.values()) + [o for o in annotated if not o["toward"]]
+        kept = list(best.values()) + [o for o in annotated if o["toward"] is not True]
         out_dir = data_dir / "observations" / direction
         out_dir.mkdir(parents=True, exist_ok=True)
-        record = {"polled_at": polled_at, "observations": kept, "errors": errors}
+        record = {"polled_at": polled_at, "observations": kept, "errors": errors,
+                  "warnings": warnings}
         with (out_dir / f"{day}.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
         latest[direction] = {
@@ -137,6 +158,7 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep, fetch
                 {"routeid": o["routeid"], "routeno": o["routeno"], "eta_min": o["eta_min"]}
                 for o in best.values()],
             "errors": errors,
+            "warnings": warnings,
         }
 
     cache.save()

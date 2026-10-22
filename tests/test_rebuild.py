@@ -100,3 +100,16 @@ def test_non_toward_observations_ignored_and_missing_toward_kept(tmp_path):
     rebuild_all(data, as_of=date(2026, 10, 1), directions=DIRECTIONS)
     ids = [a["routeid"] for a in _load(data, "arrivals.json")["hakmyeong"]["2026-10-01"]]
     assert sorted(ids) == ["A", "C"]
+
+
+def test_null_toward_is_excluded(tmp_path):
+    data = tmp_path / "data"
+    obs = {"routeid": "A", "routeno": "A", "eta_min": 3, "toward": None}
+    _write(data, "hakmyeong", "2026-10-01.jsonl", [
+        json.dumps({"polled_at": "2026-10-01T08:00:00+09:00", "observations": [obs],
+                    "errors": [], "warnings": [{"warning": "w"}]}),
+        json.dumps({"polled_at": "2026-10-01T08:01:00+09:00", "observations": [],
+                    "errors": [], "warnings": []}),
+    ])
+    rebuild_all(data, as_of=date(2026, 10, 1), directions=DIRECTIONS)
+    assert _load(data, "arrivals.json")["hakmyeong"] == {}

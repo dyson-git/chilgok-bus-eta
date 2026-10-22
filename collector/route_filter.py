@@ -47,8 +47,6 @@ def fetch_route_stops(service_key: str, city_code: str, route_id: str) -> list[t
         if not item_list or len(stops) >= int(body.get("totalCount", 0)):
             break
         page += 1
-    if not stops:
-        raise TagoApiError("empty route stop list")
     stops.sort(key=lambda s: s[0])
     return stops
 

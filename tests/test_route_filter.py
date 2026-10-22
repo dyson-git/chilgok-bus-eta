@@ -107,11 +107,10 @@ def test_fetch_route_stops_errors(monkeypatch):
         fetch_route_stops("k", "22", "R1")
 
 
-def test_fetch_route_stops_empty_items_is_an_error(monkeypatch):
+def test_fetch_route_stops_empty_items(monkeypatch):
     empty = {"response": {"header": {"resultCode": "00"}, "body": {"items": "", "totalCount": 0}}}
     monkeypatch.setattr("collector.route_filter.requests.get", lambda *a, **k: FakeResp(empty))
-    with pytest.raises(TagoApiError, match="empty route stop list"):
-        fetch_route_stops("k", "22", "R1")
+    assert fetch_route_stops("k", "22", "R1") == []
 
 
 T0 = date(2026, 10, 21)
@@ -170,3 +169,14 @@ def test_cache_failure_without_cache_reraises(tmp_path):
     cache.save()  # nothing cached: must not write bogus entries
     raw = json.loads((tmp_path / "c.json").read_text(encoding="utf-8")) if (tmp_path / "c.json").exists() else {}
     assert "22:R9" not in raw
+
+
+def test_empty_stop_list_is_cached_not_treated_as_failure(tmp_path):
+    path = tmp_path / "c.json"
+    c1 = RouteCache(path, today=T0)
+    assert c1.get_stops("k", "22", "R", fetch=lambda *a: []) == []
+    c1.save()
+    c2 = RouteCache(path, today=date(2026, 10, 25))
+    assert c2.get_stops("k", "22", "R", fetch=lambda *a: pytest.fail("fetched")) == []
+    c3 = RouteCache(path, today=date(2026, 11, 5))  # past max age: re-checked
+    assert c3.get_stops("k", "22", "R", fetch=lambda *a: R3) == R3
