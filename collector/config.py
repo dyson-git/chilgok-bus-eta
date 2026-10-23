@@ -69,7 +69,22 @@ EXTRA_ALLOWED = {
 }
 
 
+# 학명리 건너2 는 동명행 전용 정류소라 거기서 잡히는 버스는 노선과 무관하게 전부 동명으로 간다(사용자 확인 2026-10-22 "무조건 100%").
+# 동명 정류소(학명리방향)는 여러 방향 버스가 섞이므로 위 허용 목록으로 계속 거른다.
+ALL_ROUTES_DIRECTIONS = {"dongmyeong"}
+
+
+# 왕복 노선: 885 는 구미에서 동명(종점)까지 왔다가 바로 구미로 되돌아간다(사용자 확인 2026-10-22). 되돌아가는 버스는 학명리를
+# 지나지만 종점에서 노선(GMB88510 -> GMB88520)이 바뀌어 한동안 학명리행 노선 위치 목록에 안 뜬다. 그래서 학명리방향 화면에는
+# 종점에 다가오는 구미발 버스를 "곧 도착"으로 따로 보여준다. 이 노선의 위치는 동명방향 추적에서 이미 받고 있다.
+TURNAROUND_ARRIVING = {
+    "hakmyeong": [{"city_code": "37050", "routeid": "GMB88510", "routeno": "885", "terminal": "동명"}],
+}
+
+
 def is_allowed(routeid: str, routeno: str, direction: str | None = None) -> bool:
+    if direction in ALL_ROUTES_DIRECTIONS:
+        return True
     extra = EXTRA_ALLOWED.get(direction, {})
     if routeno == "칠곡3":
         return routeid in ALLOWED_CHILGOK3_ROUTEIDS | extra.get("chilgok3_routeids", set())

@@ -4,6 +4,7 @@
 //
 //   GET /arrivals?city=37390&node=CGB2479   → TAGO 원본 JSON
 //   GET /all                                → 허용된 모든 정류소를 한 번에 조회 {fetched_at, results}
+//   GET /loc                                → 허용된 모든 노선의 운행 중 버스 "현재 위치" {fetched_at, results}
 //   GET /bis?stop=2479                      → 칠곡 BIS 정류장 도착정보 HTML (비교용)
 
 const ALLOWED_ORIGINS = [
@@ -21,6 +22,17 @@ const ALLOWED_NODES = new Set([
   "37390:CGB2479", "37050:GMB2479", "37100:GYB369001900", "22:DGB7181001900",
 ]);
 
+// 위치 조회 허용 노선 "cityCode:routeId". collector/route_stops.json(scripts/resolve_routes.py)과 같은 목록 - 바뀌면 여기도 고친다.
+const ALLOWED_ROUTES = new Set([
+  "37390:CGB30010", "37390:CGB30020", "37390:CGB3410",
+  "37390:CGB3420", "37390:CGB34-110", "37390:CGB34-120",
+  "37390:CGB3610", "37390:CGB3620", "37390:CGB36-110",
+  "37390:CGB36-120", "37050:GMB88520", "37390:CGB9-310",
+  "22:DGB1000009300", "22:DGB4090003001", "22:DGB4090003011",
+  "22:DGB4090003014", "22:DGB4090003015", "37050:GMB88510",
+  "37390:CGB9-320", "22:DGB4090003023",
+]);
+
 // 칠곡 BIS STOP_ID: 학명리 건너2, 학명동, 동명면우체국, 동명면행정복지센터, 동명교통
 const ALLOWED_BIS_STOPS = new Set(["2479", "2481", "2141", "2142", "4870", "4871"]);
 
@@ -31,15 +43,39 @@ function cors(origin) {
 }
 
 const TAGO_URL = "https://apis.data.go.kr/1613000/ArvlInfoInqireService/getSttnAcctoArvlPrearngeInfoList";
+const LOC_URL = "https://apis.data.go.kr/1613000/BusLcInfoInqireService/getRouteAcctoBusLcList";
 
 const ATTEMPTS = 3;
+const LOC_ATTEMPTS = 2; // /loc 는 노선이 20개라 3번씩 시도하면 Workers 무료 한도(요청 1회당 외부 호출 50개)를 넘어 뒤쪽 노선이 통째로 실패한다
 const ATTEMPT_TIMEOUT_MS = 3500;
 const BACKOFF_MS = [250, 500];
 const MAX_INFLIGHT = 6;
 const BUDGET_MS = 9000;
-const CACHE_TTL_S = 20;
-const CACHE_MIN_OK = 12;
+const CACHE_TTL_S = 60; // /all: 화면이 받은 시각(fetched_at)부터 초 단위로 줄여 보여주므로 길게 둔다(TAGO 호출을 줄인다)
+const PARTIAL_CACHE_TTL_S = 20; // 일부 정류소/노선만 성공했을 때
+const FAIL_CACHE_TTL_S = 15; // 대부분 실패했을 때도 잠깐 들고 있는다 - TAGO 가 429 를 걸 때 요청이 계속 몰려 제한을 키우지 않게
+const FRESH_MIN_AGE_MS = 15000; // 새로고침 버튼(?fresh=1)은 캐시를 건너뛰되, 연타로 TAGO 429 가 나지 않게 15초 안의 사본은 재사용한다
 const CACHE_KEY = "https://chilgok-bus-relay.internal/all-cache-v1";
+const LOC_CACHE_TTL_S = 45; // /loc: 노선 20개를 한 번에 부르는 호출이라 TAGO 429(요청 제한)를 피하려고 길게 둔다
+const LOC_MAX_INFLIGHT = 3;
+const LOC_CACHE_KEY = "https://chilgok-bus-relay.internal/loc-cache-v1";
+
+async function readCache(cache, key, fresh) {
+  const hit = await cache.match(key);
+  if (!hit) return null;
+  const text = await hit.text();
+  if (!fresh) return text;
+  let age = Infinity;
+  try { age = Date.now() - Date.parse(JSON.parse(text).fetched_at); } catch (e) { /* 읽을 수 없으면 새로 받는다 */ }
+  return age < FRESH_MIN_AGE_MS ? text : null;
+}
+
+// 다 성공하면 오래, 일부만 성공하면 짧게, 대부분 실패하면 아주 짧게 들고 있는다.
+function cacheTtl(okCount, total, fullTtl) {
+  if (okCount === total) return fullTtl;
+  if (okCount >= Math.ceil(total * 0.75)) return Math.min(fullTtl, PARTIAL_CACHE_TTL_S);
+  return FAIL_CACHE_TTL_S;
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -49,13 +85,10 @@ function isGoodTago(body) {
   return !!(body && body.response && (!body.response.header || !body.response.header.resultCode || body.response.header.resultCode === "00"));
 }
 
-async function fetchNode(key, id, deadline) {
-  const [city, node] = id.split(":");
-  const q = new URLSearchParams({
-    serviceKey: key.trim(), cityCode: city, nodeId: node, numOfRows: "100", _type: "json",
-  });
+async function fetchTago(baseUrl, params, deadline, attempts = ATTEMPTS) {
+  const q = new URLSearchParams(params);
   let lastErr = "unknown";
-  for (let i = 0; i < ATTEMPTS; i++) {
+  for (let i = 0; i < attempts; i++) {
     if (i > 0) {
       const wait = BACKOFF_MS[i - 1];
       if (Date.now() + wait >= deadline) break;
@@ -63,7 +96,7 @@ async function fetchNode(key, id, deadline) {
     }
     if (Date.now() >= deadline) break;
     try {
-      const r = await fetch(TAGO_URL + "?" + q, { signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS) });
+      const r = await fetch(baseUrl + "?" + q, { signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS) });
       const body = await r.json();
       if (isGoodTago(body)) return body;
       const h = (body && body.OpenAPI_ServiceResponse && body.OpenAPI_ServiceResponse.cmmMsgHeader) || {};
@@ -75,9 +108,18 @@ async function fetchNode(key, id, deadline) {
   throw new Error(lastErr);
 }
 
+function fetchNode(key, id, deadline) {
+  const [city, node] = id.split(":");
+  return fetchTago(TAGO_URL, { serviceKey: key.trim(), cityCode: city, nodeId: node, numOfRows: "100", _type: "json" }, deadline);
+}
+
+function fetchRoute(key, id, deadline) {
+  const [city, routeId] = id.split(":");
+  return fetchTago(LOC_URL, { serviceKey: key.trim(), cityCode: city, routeId, numOfRows: "100", _type: "json" }, deadline, LOC_ATTEMPTS);
+}
+
 // 동시에 MAX_INFLIGHT 개까지만 TAGO 로 보낸다 (버스트에 게이트웨이가 약함).
-async function fetchAllNodes(key) {
-  const ids = [...ALLOWED_NODES];
+async function fetchMany(ids, fetchOne, inflight = MAX_INFLIGHT) {
   const deadline = Date.now() + BUDGET_MS;
   const results = {};
   let next = 0;
@@ -85,15 +127,18 @@ async function fetchAllNodes(key) {
     while (next < ids.length) {
       const id = ids[next++];
       try {
-        results[id] = { ok: true, body: await fetchNode(key, id, deadline) };
+        results[id] = { ok: true, body: await fetchOne(id, deadline) };
       } catch (e) {
         results[id] = { ok: false, error: String((e && e.message) || e) };
       }
     }
   }
-  await Promise.all(Array.from({ length: MAX_INFLIGHT }, worker));
+  await Promise.all(Array.from({ length: inflight }, worker));
   return results;
 }
+
+const fetchAllNodes = (key) => fetchMany([...ALLOWED_NODES], (id, dl) => fetchNode(key, id, dl));
+const fetchAllRoutes = (key) => fetchMany([...ALLOWED_ROUTES], (id, dl) => fetchRoute(key, id, dl), LOC_MAX_INFLIGHT);
 
 export default {
   async fetch(request, env, ctx) {
@@ -122,15 +167,27 @@ export default {
       if (!env.TAGO_SERVICE_KEY) return new Response("TAGO_SERVICE_KEY not set", { status: 500, headers });
       const jsonHeaders = { ...headers, "Content-Type": "application/json; charset=utf-8" };
       const cache = caches.default;
-      const hit = await cache.match(CACHE_KEY);
-      if (hit) return new Response(await hit.text(), { status: 200, headers: { ...jsonHeaders, "X-Relay-Cache": "hit" } });
+      const hit = await readCache(cache, CACHE_KEY, url.searchParams.get("fresh") === "1");
+      if (hit) return new Response(hit, { status: 200, headers: { ...jsonHeaders, "X-Relay-Cache": "hit" } });
       const results = await fetchAllNodes(env.TAGO_SERVICE_KEY);
       const okCount = Object.values(results).filter((r) => r.ok).length;
       const text = JSON.stringify({ fetched_at: new Date().toISOString(), results });
-      if (okCount >= CACHE_MIN_OK) {
-        const toCache = new Response(text, { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=" + CACHE_TTL_S } });
-        ctx.waitUntil(cache.put(CACHE_KEY, toCache));
-      }
+      const ttl = cacheTtl(okCount, ALLOWED_NODES.size, CACHE_TTL_S);
+      ctx.waitUntil(cache.put(CACHE_KEY, new Response(text, { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=" + ttl } })));
+      return new Response(text, { status: 200, headers: { ...jsonHeaders, "X-Relay-Cache": "miss" } });
+    }
+
+    if (url.pathname === "/loc") {
+      if (!env.TAGO_SERVICE_KEY) return new Response("TAGO_SERVICE_KEY not set", { status: 500, headers });
+      const jsonHeaders = { ...headers, "Content-Type": "application/json; charset=utf-8" };
+      const cache = caches.default;
+      const hit = await readCache(cache, LOC_CACHE_KEY, url.searchParams.get("fresh") === "1");
+      if (hit) return new Response(hit, { status: 200, headers: { ...jsonHeaders, "X-Relay-Cache": "hit" } });
+      const results = await fetchAllRoutes(env.TAGO_SERVICE_KEY);
+      const okCount = Object.values(results).filter((r) => r.ok).length;
+      const text = JSON.stringify({ fetched_at: new Date().toISOString(), results });
+      const ttl = cacheTtl(okCount, ALLOWED_ROUTES.size, LOC_CACHE_TTL_S);
+      ctx.waitUntil(cache.put(LOC_CACHE_KEY, new Response(text, { headers: { "Content-Type": "application/json", "Cache-Control": "max-age=" + ttl } })));
       return new Response(text, { status: 200, headers: { ...jsonHeaders, "X-Relay-Cache": "miss" } });
     }
 

@@ -22,7 +22,11 @@ def test_is_allowed(routeid, routeno, expected):
     ("DGB4090003023", "칠곡3", "dongmyeong", True), ("DGB4090003023", "칠곡3", "hakmyeong", False),
     ("X", "885", "dongmyeong", True), ("X", "885", "hakmyeong", True),
     ("DGB4090003011", "칠곡3", "dongmyeong", True), ("DGB4090003011", "칠곡3", "hakmyeong", True),
-    ("DGB4090003013", "칠곡3", "dongmyeong", False), ("X", "527", "dongmyeong", False),
+    # 학명리 건너2 는 동명행 전용 정류소라 거기서 잡히는 버스는 노선과 무관하게 전부 동명으로 간다(사용자 확인 2026-10-22)
+    ("DGB4090003013", "칠곡3", "dongmyeong", True), ("X", "527", "dongmyeong", True),
+    ("X", "급행3", "dongmyeong", True),
+    # 동명 정류소(학명리행)는 여러 방향 버스가 섞이므로 계속 허용 목록으로 거른다
+    ("DGB4090003013", "칠곡3", "hakmyeong", False), ("X", "527", "hakmyeong", False), ("X", "급행3", "hakmyeong", False),
 ])
 def test_is_allowed_by_direction(routeid, routeno, direction, expected):
     assert is_allowed(routeid, routeno, direction) is expected
