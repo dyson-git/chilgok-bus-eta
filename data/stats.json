@@ -81,10 +81,10 @@
     },
     {
       "slot_index": 5,
-      "min_time": "17:28",
+      "min_time": "12:01",
       "max_time": "17:28",
-      "avg_time": "17:28",
-      "sample_count": 1
+      "avg_time": "14:44",
+      "sample_count": 2
     }
   ]
 }
