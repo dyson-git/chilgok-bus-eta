@@ -35,7 +35,7 @@ def test_rebuild_all_writes_arrivals_and_stats_json(tmp_path):
         {"arrival_time": "2026-10-01T08:03:00+09:00", "routeid": "R1", "routeno": "250"}]}
     assert arrivals["dongmyeong"] == {}
     stats = _load(data, "stats.json")
-    assert stats["hakmyeong"] == [{"slot_index": 1, "min_time": "08:03",
+    assert stats["hakmyeong"] == [{"routeno": "250", "slot_index": 1, "min_time": "08:03",
                                    "max_time": "08:03", "avg_time": "08:03",
                                    "sample_count": 1}]
     assert stats["dongmyeong"] == []

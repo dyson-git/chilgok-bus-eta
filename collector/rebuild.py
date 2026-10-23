@@ -68,6 +68,7 @@ def rebuild_all(data_dir: Path, as_of: date, directions: dict[str, dict]) -> Non
         }
         stats_out[direction] = [
             {
+                "routeno": s.routeno,
                 "slot_index": s.slot_index,
                 "min_time": s.min_time.strftime("%H:%M"),
                 "max_time": s.max_time.strftime("%H:%M"),
