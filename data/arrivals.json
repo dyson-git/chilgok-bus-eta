@@ -88,6 +88,11 @@
         "arrival_time": "2026-10-23T10:03:04+09:00",
         "routeid": "DGB1000009300",
         "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-23T10:53:17+09:00",
+        "routeid": "CGB30010",
+        "routeno": "300"
       }
     ]
   }
