@@ -52,3 +52,4 @@
 {"polled_at": "2026-10-23T13:20:06+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-23T13:25:07+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-23T13:45:07+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 41.583333333333336, "city_code": "37390", "node_id": "CGB2479", "toward": true}, {"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 18.133333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-23T13:50:06+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 35.43333333333333, "city_code": "37390", "node_id": "CGB2479", "toward": true}, {"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 15.933333333333334, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
