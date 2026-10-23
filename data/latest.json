@@ -1,45 +1,29 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-10-23T15:35:04+09:00",
+    "polled_at": "2026-10-23T15:40:04+09:00",
     "observations": [],
     "errors": [
       {
         "city_code": "37390",
-        "node_id": "CGB2141",
+        "node_id": "CGB2142",
         "error": "TagoApiError: TAGO API error: HTTP_ERROR (code: 04)"
       },
       {
-        "city_code": "22",
-        "node_id": "DGB3690003750",
-        "error": "TagoApiError: TAGO API error: HTTP_ERROR (code: 04)"
-      },
-      {
-        "city_code": "37390",
-        "node_id": "CGB4870",
-        "error": "TagoApiError: TAGO API error: HTTP_ERROR (code: 04)"
-      },
-      {
-        "city_code": "37390",
-        "node_id": "CGB4871",
+        "city_code": "37050",
+        "node_id": "GMB2141",
         "error": "TagoApiError: TAGO API error: HTTP_ERROR (code: 04)"
       }
     ]
   },
   "dongmyeong": {
-    "polled_at": "2026-10-23T15:35:04+09:00",
+    "polled_at": "2026-10-23T15:40:04+09:00",
     "observations": [
       {
         "routeid": "DGB1000009300",
         "routeno": "급행9-3",
-        "eta_min": 27.616666666666667
+        "eta_min": 21.766666666666666
       }
     ],
-    "errors": [
-      {
-        "city_code": "37390",
-        "node_id": "CGB2479",
-        "error": "TagoApiError: TAGO API error: HTTP_ERROR (code: 04)"
-      }
-    ]
+    "errors": []
   }
 }
