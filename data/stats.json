@@ -53,10 +53,10 @@
   "dongmyeong": [
     {
       "slot_index": 1,
-      "min_time": "14:01",
+      "min_time": "09:43",
       "max_time": "14:01",
-      "avg_time": "14:01",
-      "sample_count": 1
+      "avg_time": "11:52",
+      "sample_count": 2
     },
     {
       "slot_index": 2,
