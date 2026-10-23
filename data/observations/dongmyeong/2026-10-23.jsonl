@@ -73,3 +73,4 @@
 {"polled_at": "2026-10-23T15:20:04+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-23T15:25:03+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-23T15:30:04+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-23T15:35:04+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 27.616666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": [{"city_code": "37390", "node_id": "CGB2479", "error": "TagoApiError: TAGO API error: HTTP_ERROR (code: 04)"}]}
