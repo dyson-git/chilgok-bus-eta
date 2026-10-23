@@ -68,3 +68,4 @@
 {"polled_at": "2026-10-23T14:55:04+09:00", "observations": [{"routeid": "DGB4090003014", "routeno": "칠곡3", "eta_min": 8.316666666666666, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
 {"polled_at": "2026-10-23T15:00:04+09:00", "observations": [{"routeid": "DGB4090003014", "routeno": "칠곡3", "eta_min": 3.6, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
 {"polled_at": "2026-10-23T15:05:04+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-23T15:10:03+09:00", "observations": [], "errors": []}
