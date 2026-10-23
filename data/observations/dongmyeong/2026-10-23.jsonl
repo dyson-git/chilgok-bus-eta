@@ -26,3 +26,4 @@
 {"polled_at": "2026-10-23T10:30:12+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 32.733333333333334, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
 {"polled_at": "2026-10-23T10:35:05+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 27.266666666666666, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
 {"polled_at": "2026-10-23T10:40:07+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 14.866666666666667, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-23T10:45:05+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 12.2, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
