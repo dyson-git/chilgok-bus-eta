@@ -1,27 +1,28 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-10-23T16:00:05+09:00",
+    "polled_at": "2026-10-23T16:05:05+09:00",
     "observations": [
       {
         "routeid": "CGB30020",
         "routeno": "300",
-        "eta_min": 11.633333333333333
+        "eta_min": 7.033333333333333
       }
     ],
-    "errors": []
+    "errors": [
+      {
+        "city_code": "37390",
+        "node_id": "CGB2142",
+        "error": "TagoApiError: TAGO API error: HTTP_ERROR (code: 04)"
+      }
+    ]
   },
   "dongmyeong": {
-    "polled_at": "2026-10-23T16:00:05+09:00",
+    "polled_at": "2026-10-23T16:05:05+09:00",
     "observations": [
-      {
-        "routeid": "DGB1000009300",
-        "routeno": "급행9-3",
-        "eta_min": 1.6
-      },
       {
         "routeid": "DGB4090003011",
         "routeno": "칠곡3",
-        "eta_min": 11.05
+        "eta_min": 8.25
       }
     ],
     "errors": []
