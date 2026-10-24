@@ -113,3 +113,21 @@ def test_null_toward_is_excluded(tmp_path):
     ])
     rebuild_all(data, as_of=date(2026, 10, 1), directions=DIRECTIONS)
     assert _load(data, "arrivals.json")["hakmyeong"] == {}
+
+
+def test_rebuild_rechecks_direction_with_current_rules_not_the_stored_flag(tmp_path):
+    """예전 수집 기록은 반대 방향 300(CGB30010)을 학명리행으로 저장했다. 시간표는 지금 규칙으로 다시 거른다."""
+    data = tmp_path / "data"
+
+    def snap(ts, obs):
+        return json.dumps({"polled_at": ts, "observations": obs, "errors": []}, ensure_ascii=False)
+
+    away = {"routeid": "CGB30010", "routeno": "300", "eta_min": 3, "toward": True}
+    toward = {"routeid": "CGB30020", "routeno": "300", "eta_min": 3, "toward": True}
+    _write(data, "hakmyeong", "2026-10-01.jsonl", [
+        snap("2026-10-01T08:00:00+09:00", [away, toward]),
+        snap("2026-10-01T08:01:00+09:00", []),
+    ])
+    rebuild_all(data, as_of=date(2026, 10, 1), directions=DIRECTIONS)
+    ids = [a["routeid"] for a in _load(data, "arrivals.json")["hakmyeong"]["2026-10-01"]]
+    assert ids == ["CGB30020"]

@@ -111,6 +111,24 @@
   eq("학명리행(대구 학명리): 학명리 가는 칠곡3 만, 60-10=50분, 49-8=41정류장, 동명면행정복지센터에서 타기",
      B.buildRows(dcfg, ["dgb:3690003070"], { "dgb:3690003070": dr }).map(function (r) { return [r.route_id, r.minutes, r.stops_away, r.station_name]; }),
      [["dgb:4090003014", 50, 41, "동명면행정복지센터"]]);
+  // 동명면행정복지센터(8)는 지났지만 동명교통(7) 앞인 버스: 동명교통에서 타기, 시간은 10*7/8 -> 9분을 뺀다
+  var acfg = { stops: { "dgb:3690003070": { name: "학명리", route_ids: ["dgb:4090003014"], route_nos: ["칠곡3"], offset_min: 10,
+    gaps: { "dgb:4090003014": { stops: 8, board: "동명면행정복지센터", alts: [{ stops: 7, board: "동명교통" }] } } } } };
+  var at = function (gap, min) { return { "dgb:3690003070": [{ route_id: "dgb:4090003014", route_no: "칠곡3", ends: "", stops_away: gap, minutes: min, text: min + "분" }] }; };
+  eq("동명교통에 있는 칠곡3(학명리까지 7정거장/9분) -> 동명교통 정류장에 있음, 0분, -9분",
+     B.buildRows(acfg, ["dgb:3690003070"], at(7, 9)).map(function (r) { return [r.stops_away, r.minutes, r.station_name, r.offset_min]; }),
+     [[0, 0, "동명교통", 9]]);
+  eq("아직 행정복지센터 앞이면 그대로 행정복지센터 기준(-10분) / 동명을 다 지났으면(6정거장) 안 보인다",
+     [B.buildRows(acfg, ["dgb:3690003070"], at(12, 16)).map(function (r) { return [r.stops_away, r.minutes, r.station_name]; }),
+      B.buildRows(acfg, ["dgb:3690003070"], at(6, 7)).length],
+     [[[4, 6, "동명면행정복지센터"]], 0]);
+  // 앱을 다시 열어도 받은 시간을 이어서 줄인다: 저장한 기억을 읽고, 도착 시각 + 3분이 지난 것만 버린다
+  var TT = 5000000;
+  eq("저장한 기억 읽기(지난 것·깨진 값은 버림)",
+     [B.loadAnchorMemo(JSON.stringify({ "hakmyeong:dgb:1": { end: TT + 60000, raw: 600, last: { route_no: "칠곡3" }, lastAt: TT - 540000 },
+                                        "hakmyeong:dgb:2": { end: TT - 180001, raw: 60, last: {}, lastAt: TT - 240000 } }), TT),
+      B.loadAnchorMemo("{깨짐", TT), B.loadAnchorMemo(null, TT)],
+     [{ "hakmyeong:dgb:1": { end: TT + 60000, raw: 600, last: { route_no: "칠곡3" }, lastAt: TT - 540000 } }, {}, {}]);
   out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
   document.getElementById("out").textContent = out.join("\n");
 })();

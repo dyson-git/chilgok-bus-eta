@@ -190,7 +190,22 @@ window.onerror = function (m, s, l) { document.getElementById("out").textContent
   applyCountdown([{ routeid: "R", vehicleno: "V1", eta_min: null }], memo2, "dongmyeong", T + 30000, 0);
   eq("한두 번 안 보인 차는 기억을 유지한다(위치 호출이 잠깐 빠져도 시간이 끊기지 않는다)", Object.keys(memo2).sort(), ["dongmyeong:R:V1", "dongmyeong:R:V9", "hakmyeong:R:V1"]);
   applyCountdown([{ routeid: "R", vehicleno: "V1", eta_min: null }], memo2, "dongmyeong", T + 130000, 0);
-  eq("2분 넘게 안 보인 차는 기억에서 지운다(방향이 다르면 따로)", Object.keys(memo2).sort(), ["dongmyeong:R:V1", "hakmyeong:R:V1"]);
+  eq("한동안 안 보인 차도 받은 도착 시각은 기억한다(사용자 규칙 2026-10-24: 받은 시간을 기억하고 줄이다가 새로 받으면 갱신)",
+     Object.keys(memo2).sort(), ["dongmyeong:R:V1", "dongmyeong:R:V9", "hakmyeong:R:V1"]);
+  var back = [{ routeid: "R", vehicleno: "V9", eta_min: null }];
+  applyCountdown(back, memo2, "dongmyeong", T + 200000, 0);
+  eq("다시 나타났는데 시간이 안 오면 기억한 시각에서 이어서 줄인다(정류장 수만 뜨지 않는다)", back[0].eta_end, T + 360000);
+  applyCountdown([], memo2, "dongmyeong", T + 360000 + 600001, 0);
+  eq("도착 시각에서 10분이 지나면 그때 잊는다", Object.keys(memo2).sort(), ["hakmyeong:R:V1"]);
+  var memo7 = {};
+  applyCountdown([{ routeid: "R", vehicleno: null, eta_min: 7 }], memo7, "hakmyeong", T, 0);
+  var tv = [{ routeid: "R", vehicleno: "V5", stop_name: "동명면우체국", eta_min: null }];
+  applyCountdown(tv, memo7, "hakmyeong", T + 30000, 0);
+  eq("도착정보로만 받은 시간(차량번호 없음)은, 그 노선에 하나뿐이면 위치로 잡힌 차가 시간 없이 와도 이어받는다", tv[0].eta_end, T + 420000);
+  eq("앱을 다시 열어도 받은 시간을 기억한다: 저장한 값을 읽고 10분 넘게 지난 것만 버린다",
+     [loadEtaMemo(JSON.stringify({ "a": { end: T, raw: 60, seen: T }, "b": { end: T - 600001, raw: 60, seen: T } }), T),
+      loadEtaMemo("깨진 값", T), loadEtaMemo(null, T)],
+     [{ "a": { end: T, raw: 60, seen: T } }, {}, {}]);
   var memo3 = {};
   applyCountdown([{ routeid: "R", vehicleno: "V1", stop_name: "A정류장", eta_min: 2 }], memo3, "hakmyeong", T, 0);
   var b4 = [{ routeid: "R", vehicleno: "V1", stop_name: "B정류장", eta_min: null }];
@@ -258,6 +273,13 @@ window.onerror = function (m, s, l) { document.getElementById("out").textContent
   eq("시간표 박스: 접으면 표 없이 '눌러서 펼치기', 펴면 표, 터치 대상 표시(data-fold/aria-expanded)",
      [tFold.indexOf("<table") >= 0, tFold.indexOf("눌러서 펼치기") >= 0, tOpen.indexOf("<table") >= 0, tFold.indexOf('data-fold="dongmyeong"') >= 0,
       tFold.indexOf('aria-expanded="false"') >= 0, tOpen.indexOf('aria-expanded="true"') >= 0], [false, true, true, true, true, true]);
+  // 반대 방향 300(학명리를 지나 동명을 거쳐 대구로 가는 30010)은 학명리행이 아니다
+  eq("학명리행: 300 30010 은 빼고 30020 은 보여준다, 동명행은 30010 그대로",
+     [isAllowed("CGB30010", "300", D.hakmyeong), isAllowed("CGB30020", "300", D.hakmyeong), isAllowed("CGB30010", "300", D.dongmyeong)],
+     [false, true, true]);
+  eq("학명리행 도착 목록에서 30010 이 빠진다",
+     selectArrivals([{ routeid: "CGB30010", routeno: "300", eta_min: 48 }, { routeid: "CGB30020", routeno: "300", eta_min: 20 }], D.hakmyeong).map(function (o) { return o.routeid; }),
+     ["CGB30020"]);
   out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
   document.getElementById("out").textContent = out.join("\n");
 })();

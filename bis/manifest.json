@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "칠곡 버스 도착 (칠곡 버스정보시스템)",
+  "short_name": "버스도착 칠곡",
+  "description": "칠곡군 버스정보시스템으로 보는 동명 · 학명리 방향 버스 도착",
+  "lang": "ko",
+  "display": "standalone",
+  "start_url": "./",
+  "scope": "./",
+  "theme_color": "#1565c0",
+  "background_color": "#ffffff",
+  "icons": [
+    {"src": "../icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "../icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

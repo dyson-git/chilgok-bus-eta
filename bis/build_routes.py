@@ -17,7 +17,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from bis.parse import parse_stop_popup, stops_between
+from bis.parse import boarding_options, parse_stop_popup, stops_between
 
 BASE = "https://bus.chilgok.go.kr"
 HEADERS = {"User-Agent": "Mozilla/5.0", "X-Requested-With": "XMLHttpRequest", "Referer": BASE + "/map/BusMap.do",
@@ -39,6 +39,16 @@ DAEGU_STOPS = {
     "3690003090": ("hakmyeong", ["급행9-3"], 3),                # 학명리(등골마을입구): 동명면우체국에서 3정거장 -> 3분
 }
 DAEGU_REF_NAMES = ["동명면행정복지센터", "동명교통", "동명면우체국"]   # 정거장 수를 셀 동명 정류장, 앞쪽 우선
+
+
+def gap_entry(stop_list, ref_ids, target_id):
+    """{stops, board, alts}: 기준 승차 정류장(ref_ids 우선순위) + 그보다 학명리에 가까운 동명 정류장(alts, 먼 것부터).
+    버스가 기준 정류장을 지났어도 alts 정류장 앞이면 화면이 그 정류장으로 보여준다. 노선이 해당 없으면 None."""
+    found = stops_between(stop_list, ref_ids, target_id)
+    if not found:
+        return None
+    alts = [{"stops": n, "board": b} for n, b in boarding_options(stop_list, ref_ids, target_id) if n < found[0]]
+    return {"stops": found[0], "board": found[1], "alts": alts}
 
 
 def post(path, **data):
@@ -75,9 +85,9 @@ def daegu_stops():
                     continue
                 sl = lists[r["routeId"]]
                 ref_ids = [x["STOP_SERVICEID"] for nm in DAEGU_REF_NAMES for x in sl if x["STOP_KNAME"] == nm]
-                found = stops_between(sl, ref_ids, bs)
-                if found:
-                    gaps["dgb:" + r["routeId"]] = {"stops": found[0], "board": found[1]}
+                entry_gap = gap_entry(sl, ref_ids, bs)
+                if entry_gap:
+                    gaps["dgb:" + r["routeId"]] = entry_gap
             entry.update({"route_ids": list(gaps), "gaps": gaps, "offset_min": offset})
         out["dgb:" + bs] = entry
     return out
@@ -110,9 +120,9 @@ def main():
                     if r["api_id"] not in stop_lists:
                         stop_lists[r["api_id"]] = json.loads(post("/map/StopListByRoute.do", route_id=r["api_id"])).get("stopList") or []
                         time.sleep(0.25)
-                    found = stops_between(stop_lists[r["api_id"]], REF_IDS, s["service_id"])
-                    if found:
-                        gaps[r["route_id"]] = {"stops": found[0], "board": found[1]}
+                    entry_gap = gap_entry(stop_lists[r["api_id"]], REF_IDS, s["service_id"])
+                    if entry_gap:
+                        gaps[r["route_id"]] = entry_gap
                 taken.update(gaps)
                 entry.update({"route_ids": list(gaps), "gaps": gaps, "offset_min": OFFSET_MIN[sid]})
             out_stops[sid] = entry

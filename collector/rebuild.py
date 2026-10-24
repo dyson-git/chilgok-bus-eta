@@ -3,6 +3,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+from collector.config import AWAY_ROUTEIDS
 from collector.models import ArrivalObservation
 from collector.resolve_arrivals import ConfirmedArrival, PollSnapshot, resolve_arrivals
 from collector.stats import compute_stats
@@ -16,7 +17,7 @@ def _to_kst(dt: datetime) -> datetime:
     return dt.astimezone(KST)
 
 
-def _load_snapshots(direction_dir: Path) -> list[PollSnapshot]:
+def _load_snapshots(direction_dir: Path, direction: str) -> list[PollSnapshot]:
     snapshots: list[PollSnapshot] = []
     if not direction_dir.is_dir():
         return snapshots
@@ -35,7 +36,8 @@ def _load_snapshots(direction_dir: Path) -> list[PollSnapshot]:
                     observations=[
                         ArrivalObservation(o["routeid"], o["routeno"], float(o["eta_min"]))
                         for o in raw.get("observations", [])
-                        if o.get("toward", True) is True
+                        # 예전 기록은 반대 방향(AWAY_ROUTEIDS, 2026-10-24 추가)도 toward 로 저장했다 - 지금 빼고 센다
+                        if o.get("toward", True) is True and o["routeid"] not in AWAY_ROUTEIDS.get(direction, set())
                     ],
                 ))
     snapshots.sort(key=lambda s: s.polled_at)
@@ -49,7 +51,7 @@ def rebuild_all(data_dir: Path, as_of: date, directions: dict[str, dict]) -> Non
     stats_out: dict[str, list] = {}
 
     for direction in directions:
-        snapshots = _load_snapshots(data_dir / "observations" / direction)
+        snapshots = _load_snapshots(data_dir / "observations" / direction, direction)
         confirmed = resolve_arrivals(snapshots)
         by_date: dict[date, list[ConfirmedArrival]] = defaultdict(list)
         for c in confirmed:

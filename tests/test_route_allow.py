@@ -30,3 +30,14 @@ def test_is_allowed(routeid, routeno, expected):
 ])
 def test_is_allowed_by_direction(routeid, routeno, direction, expected):
     assert is_allowed(routeid, routeno, direction) is expected
+
+
+# 반대 방향(학명리를 지난 뒤 동명을 거쳐 멀어지는) 노선은 동명 정류소에 와도 학명리행이 아니다(2026-10-24 실측:
+# 300 30010 = 가산->학명리 건너2->동명교통->북부정류장. 같은 버스가 동명행 22정류장 / 학명리행 30정류장으로 둘 다 떴다).
+@pytest.mark.parametrize("routeid,routeno,direction,expected", [
+    ("CGB30010", "300", "hakmyeong", False), ("CGB3410", "34", "hakmyeong", False), ("CGB34-110", "34-1", "hakmyeong", False),
+    ("CGB30020", "300", "hakmyeong", True), ("CGB3420", "34", "hakmyeong", True), ("CGB34-120", "34-1", "hakmyeong", True),
+    ("CGB30010", "300", "dongmyeong", True),
+])
+def test_routes_heading_away_from_hakmyeong_are_not_hakmyeong_bound(routeid, routeno, direction, expected):
+    assert is_allowed(routeid, routeno, direction) is expected

@@ -139,7 +139,7 @@ def test_routes_json_takes_only_chilgok3_and_express_9_3_from_daegu():
     assert (gonneo2["source"], gonneo2["direction"], gonneo2["route_nos"]) == ("daegu", "dongmyeong", ["칠곡3", "급행9-3"])
     hak = stops["dgb:3690003070"]   # 대구 시스템의 학명리 정류소(학명리 방향) - 시간 -10분
     assert (hak["source"], hak["direction"], hak["offset_min"]) == ("daegu", "hakmyeong", 10)
-    assert hak["gaps"]["dgb:4090003014"] == {"stops": 8, "board": "동명면행정복지센터"}
+    assert (hak["gaps"]["dgb:4090003014"]["stops"], hak["gaps"]["dgb:4090003014"]["board"]) == (8, "동명면행정복지센터")
     assert "dgb:4090003021" not in hak["route_ids"]          # 학명리에 안 가는 칠곡3
     express = stops["dgb:3690003090"]                         # 급행9-3 은 학명리 정류소에 안 서고 등골마을입구에 선다
     assert express["route_ids"] == ["dgb:1000009300"] and express["gaps"]["dgb:1000009300"]["stops"] == 3
@@ -150,3 +150,31 @@ def test_timetable_is_below_the_bus_cards_in_both_apps():
         html = (ROOT / page).read_text(encoding="utf-8")
         assert html.index('id="times"') > html.index('id="card-hakmyeong"'), page
         assert html.index('id="times"') > html.index('id="checked"'), page
+
+
+# ---- 학명리행: 버스가 동명면행정복지센터를 이미 지났어도 아직 동명교통 앞이면 동명교통에서 탈 수 있다(2026-10-24 13:43 실측:
+#      칠곡3 이 동명교통에 있는데(학명리까지 7정거장/9분) 기준 8정거장보다 가까워 "지금 오는 버스 없음"이 떴다) ----
+from bis.parse import boarding_options
+
+
+def test_boarding_options_lists_every_dongmyeong_stop_before_hakmyeong_farthest_first():
+    loop = _stops((1, "동명교통", 24871), (47, "동명면우체국", 12141), (48, "동명면행정복지센터", 12142),
+                  (49, "동명교통", 24871), (56, "학명리", 12483), (111, "동명교통", 24871))
+    assert boarding_options(loop, REF, "12483") == [(9, "동명면우체국"), (8, "동명면행정복지센터"), (7, "동명교통")]
+    assert boarding_options(_stops((3, "학명리", 12483)), REF, "12483") == []
+
+
+def test_routes_json_keeps_closer_dongmyeong_stops_as_fallbacks():
+    stops = json.loads((ROOT / "bis" / "routes.json").read_text(encoding="utf-8"))["stops"]
+    g = stops["dgb:3690003070"]["gaps"]["dgb:4090003014"]
+    assert (g["stops"], g["board"]) == (8, "동명면행정복지센터")
+    assert g["alts"] == [{"stops": 7, "board": "동명교통"}]
+
+
+def test_second_app_installs_separately_from_the_first():
+    man = json.loads((ROOT / "bis" / "manifest.json").read_text(encoding="utf-8"))
+    first = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+    assert man["start_url"] == "./" and man["scope"] == "./" and man["id"] == "./"
+    assert man["short_name"] != first["short_name"]
+    assert all(i["src"].startswith("../icons/") for i in man["icons"])
+    assert '<link rel="manifest" href="manifest.json">' in (ROOT / "bis" / "index.html").read_text(encoding="utf-8")

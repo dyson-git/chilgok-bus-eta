@@ -70,3 +70,18 @@ def stops_between(stop_list, ref_ids, target_id):
             s = max(before, key=lambda x: int(x["WAYPOINT_ORD"]))
             return t - int(s["WAYPOINT_ORD"]), s.get("STOP_KNAME") or ""
     return None
+
+
+def boarding_options(stop_list, ref_ids, target_id):
+    """target_id 정류장(처음 지나는 곳) 바로 앞 회차에서 지나는 동명 정류장(ref_ids) 전부 -> [(정거장 수, 이름)], 먼 것부터.
+    버스가 기준 정류장을 이미 지났어도 더 가까운 동명 정류장 앞이면 거기서 탈 수 있어서 쓴다. target 이 노선에 없으면 []."""
+    target = [int(s["WAYPOINT_ORD"]) for s in stop_list if str(s["STOP_SERVICEID"]) == str(target_id)]
+    if not target:
+        return []
+    t, out = min(target), set()
+    for ref in dict.fromkeys(str(r) for r in ref_ids):
+        before = [s for s in stop_list if str(s["STOP_SERVICEID"]) == ref and int(s["WAYPOINT_ORD"]) < t]
+        if before:
+            s = max(before, key=lambda x: int(x["WAYPOINT_ORD"]))
+            out.add((t - int(s["WAYPOINT_ORD"]), s.get("STOP_KNAME") or ""))
+    return sorted(out, key=lambda x: -x[0])

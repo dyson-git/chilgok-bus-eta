@@ -44,7 +44,9 @@ function countdownText(endMs, nowMs) {
 // memo[key] = {end, raw, seen}. key = 방향:노선:차량번호(차량번호가 없는 줄은 같은 노선 안의 순서)[:다음 승차 정류장].
 // 위치로 확인되지 않는 줄(차량번호 없음)은 같은 값이 시간이 다 지난 뒤(+30초)에도 반복되면 낡은 값이라 b.stale 로 표시한다.
 // ageMs: 중계가 이 정보를 받아 둔 지 얼마나 됐는지(캐시 나이). 그만큼 이미 흐른 시간으로 친다.
-var ETA_OVERDUE_HOLD_MS = 600000, ETA_ABSENT_GRACE_MS = 120000, ETA_STALE_AFTER_MS = 30000;
+// 버스가 잠깐(위치 호출 실패 등) 안 보여도 받은 시각은 지우지 않는다 - 다시 나타나면 이어서 줄인다(사용자 규칙 2026-10-24).
+// 기억은 도착 시각 + 10분이 지나야 버린다. 화면은 이 기억을 기기에 저장해서 앱을 다시 열어도 쓴다(loadEtaMemo).
+var ETA_OVERDUE_HOLD_MS = 600000, ETA_STALE_AFTER_MS = 30000;
 function applyCountdown(buses, memo, dirKey, now, ageMs) {
   var rank = {};
   buses.forEach(function (b) {
@@ -73,11 +75,30 @@ function applyCountdown(buses, memo, dirKey, now, ageMs) {
       b.eta_end = m.end; m.seen = now;
     } else if (m) {
       delete memo[key];
+    } else if (b.vehicleno) {
+      // 도착정보로만 받아 둔 시간(차량번호 없는 줄)이 이 노선에 하나뿐이면, 위치로 잡힌 이 차가 그 버스다 - 이어받는다
+      var pre2 = dirKey + ":" + b.routeid + ":~", only = Object.keys(memo).filter(function (k) { return k.indexOf(pre2) === 0; });
+      if (only.length === 1 && now - memo[only[0]].end <= ETA_OVERDUE_HOLD_MS) {
+        memo[key] = memo[only[0]]; delete memo[only[0]];
+        b.eta_end = memo[key].end; memo[key].seen = now;
+      }
     }
   });
   Object.keys(memo).forEach(function (k) {
-    if (k.indexOf(dirKey + ":") === 0 && now - memo[k].seen > ETA_ABSENT_GRACE_MS) delete memo[k];
+    if (k.indexOf(dirKey + ":") === 0 && now - memo[k].end > ETA_OVERDUE_HOLD_MS) delete memo[k];
   });
+}
+
+// 기기에 저장해 둔 기억(JSON 문자열) -> memo. 깨졌거나 없으면 빈 기억, 도착 시각에서 10분 넘게 지난 것은 버린다.
+function loadEtaMemo(text, now) {
+  var out = {}, j;
+  try { j = JSON.parse(text); } catch (e) { return out; }
+  if (!j || typeof j !== "object") return out;
+  Object.keys(j).forEach(function (k) {
+    var m = j[k];
+    if (m && typeof m.end === "number" && now - m.end <= ETA_OVERDUE_HOLD_MS) out[k] = m;
+  });
+  return out;
 }
 
 // 위치 호출(/loc)이 일부 노선을 못 받아도(TAGO 요청 제한) 그 노선의 직전 위치를 maxAgeMs 동안 이어 쓴다.
@@ -112,6 +133,7 @@ function trackingUsable(res, dirCfg) {
 function isAllowed(routeid, routeno, dirCfg) {
   if (dirCfg && dirCfg.all_routes) return true;  // 학명리 건너2: 거기서 잡히는 건 전부 동명행
   routeid = String(routeid); routeno = String(routeno);
+  if ((dirCfg.away_routeids || []).indexOf(routeid) !== -1) return false;  // 학명리를 지나 동명을 거쳐 멀어지는 방향
   if (routeno === "칠곡3") return dirCfg.chilgok3_routeids.indexOf(routeid) !== -1;
   return dirCfg.routenos.indexOf(routeno) !== -1;
 }
@@ -410,13 +432,13 @@ function renderReference(tt) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { isAllowed: isAllowed, parseArrivals: parseArrivals, selectArrivals: selectArrivals, buildDirection: buildDirection, parseAllResponse: parseAllResponse, renderCard: renderCard, renderSlots: renderSlots, renderTimeBox: renderTimeBox, validEta: validEta, formatEta: formatEta, countdownText: countdownText, applyCountdown: applyCountdown, trackingUsable: trackingUsable, mergeLastLoc: mergeLastLoc, liveRows: liveRows, renderReference: renderReference, parseBusLocations: parseBusLocations, parseLocResponse: parseLocResponse, buildTracking: buildTracking, formatAway: formatAway };
+  module.exports = { isAllowed: isAllowed, parseArrivals: parseArrivals, selectArrivals: selectArrivals, buildDirection: buildDirection, parseAllResponse: parseAllResponse, renderCard: renderCard, renderSlots: renderSlots, renderTimeBox: renderTimeBox, validEta: validEta, formatEta: formatEta, countdownText: countdownText, applyCountdown: applyCountdown, loadEtaMemo: loadEtaMemo, trackingUsable: trackingUsable, mergeLastLoc: mergeLastLoc, liveRows: liveRows, renderReference: renderReference, parseBusLocations: parseBusLocations, parseLocResponse: parseLocResponse, buildTracking: buildTracking, formatAway: formatAway };
 }
 
 if (typeof document !== "undefined") {
   (function () {
     var state = { stats: null, latest: null, res: { dongmyeong: null, hakmyeong: null },
-      checkedAt: null, loading: false, refOpen: false, etaEnd: {}, good: {}, lastLoc: {}, fold: readFold() };
+      checkedAt: null, loading: false, refOpen: false, etaEnd: readEtaMemo(), good: {}, lastLoc: {}, fold: readFold() };
     var MAX_INFLIGHT = 3, MAX_ATTEMPTS = 3;
     var elRefresh = document.getElementById("refresh");
     var elChecked = document.getElementById("checked");
@@ -436,6 +458,13 @@ if (typeof document !== "undefined") {
     // 펴기/접기 상태는 이 기기에만 기억한다(못 읽으면 펼친 채로 시작)
     function readFold() {
       try { return JSON.parse(localStorage.getItem("timesFold")) || {}; } catch (e) { return {}; }
+    }
+    // 받은 도착 시각 기억도 이 기기에 저장해 앱을 다시 열어도 이어서 줄인다(못 읽으면 빈 기억으로 시작)
+    function readEtaMemo() {
+      try { return loadEtaMemo(localStorage.getItem("etaMemo"), Date.now()); } catch (e) { return {}; }
+    }
+    function saveEtaMemo() {
+      try { localStorage.setItem("etaMemo", JSON.stringify(state.etaEnd)); } catch (e) { /* 저장 못 해도 동작은 한다 */ }
     }
     function toggleFold(el) {
       var box = el.closest ? el.closest("[data-fold]") : null;
@@ -584,6 +613,7 @@ if (typeof document !== "undefined") {
         });
         state.checkedAt = now;
         state.live = !!(got.loc || got.arr);
+        saveEtaMemo();
         drawCards();
       }
       var pLoc = c ? fetchLoc(c, fresh).then(function (m) { got.loc = m; got.locDone = true; paint(false); }) : Promise.resolve();

@@ -84,12 +84,17 @@ function buildRows(cfg, stationIds, popups) {
         stops_away: r.stops_away, minutes: r.minutes };
       var gap = st.gaps ? st.gaps[r.route_id] : null;
       if (gap) {
-        if (r.stops_away === null || r.stops_away < gap.stops) return;
-        row.stops_away = r.stops_away - gap.stops;
-        row.station_name = gap.board;
-        row.minutes = r.minutes === null ? null : Math.max(0, r.minutes - st.offset_min);
+        // 기준 승차 정류장(gap)을 이미 지났으면 아직 앞에 있는 더 가까운 동명 정류장(alts, 먼 것부터)에서 탄다.
+        // 빼는 분은 기준 정류장의 분(사용자 방식 10분)을 정거장 수 비율로 줄인다(예: 8정거장 10분 -> 7정거장 9분).
+        var board = r.stops_away === null ? null : r.stops_away >= gap.stops ? gap :
+          (gap.alts || []).filter(function (a) { return r.stops_away >= a.stops; })[0];
+        if (!board) return;
+        var off = board === gap ? st.offset_min : Math.round(st.offset_min * board.stops / gap.stops);
+        row.stops_away = r.stops_away - board.stops;
+        row.station_name = board.board;
+        row.minutes = r.minutes === null ? null : Math.max(0, r.minutes - off);
         row.estimated = true;
-        row.offset_min = st.offset_min;
+        row.offset_min = off;
       }
       var cur = best[r.route_id];
       var better = !cur || (row.minutes !== null && (cur.minutes === null || row.minutes < cur.minutes));
@@ -123,6 +128,19 @@ function applyAnchors(rows, memo, dirKey, now) {
     out.push(Object.assign({ end: m.end, carried: true, lastAt: m.lastAt }, m.last));
   });
   out.sort(function (a, b) { return (a.end === null ? 1e18 : a.end) - (b.end === null ? 1e18 : b.end); });
+  return out;
+}
+
+// 기기에 저장해 둔 기억(JSON 문자열) -> memo. 앱을 다시 열어도 받은 시간을 이어서 줄이려고 쓴다.
+// 깨졌거나 없으면 빈 기억, 도착 시각 + 3분이 지난 것은 버린다(applyAnchors 와 같은 기준).
+function loadAnchorMemo(text, now) {
+  var out = {}, j;
+  try { j = JSON.parse(text); } catch (e) { return out; }
+  if (!j || typeof j !== "object") return out;
+  Object.keys(j).forEach(function (k) {
+    var m = j[k];
+    if (m && typeof m.end === "number" && m.last && now - m.end <= HOLD_AFTER_END_MS) out[k] = m;
+  });
   return out;
 }
 
@@ -178,7 +196,7 @@ function renderTimeBox(dir, stats, folded) {
     esc(TIME_TITLE[dir]) + "</h2>" + (folded ? '<p class="note">눌러서 펼치기</p>' : renderSlots(rows)) + "</section>";
 }
 
-window.BisLive = { parsePopup: parsePopup, parseDaegu: parseDaegu, countdownText: countdownText, buildRows: buildRows, applyAnchors: applyAnchors,
+window.BisLive = { parsePopup: parsePopup, parseDaegu: parseDaegu, countdownText: countdownText, buildRows: buildRows, applyAnchors: applyAnchors, loadAnchorMemo: loadAnchorMemo,
   renderCard: renderCard, renderTimeBox: renderTimeBox };
 
 // ---- 화면 연결 (bis/index.html 의 <body data-app="bis"> 에서만. 검사 페이지는 건너뛴다) ----
@@ -187,11 +205,15 @@ if (!window.BIS_NO_INIT && document.body && document.body.getAttribute("data-app
     var DIRS = ["dongmyeong", "hakmyeong"];
     var elCard = { dongmyeong: document.getElementById("card-dongmyeong"), hakmyeong: document.getElementById("card-hakmyeong") };
     var elRefresh = document.getElementById("refresh"), elChecked = document.getElementById("checked"), elTimes = document.getElementById("times");
-    var state = { cfg: null, memo: {}, rows: { dongmyeong: [], hakmyeong: [] }, status: { dongmyeong: null, hakmyeong: null },
+    var state = { cfg: null, memo: readMemo(), rows: { dongmyeong: [], hakmyeong: [] }, status: { dongmyeong: null, hakmyeong: null },
       checkedAt: null, loading: false, okStations: 0, stats: null, fold: readFold() };
 
     function readFold() {
       try { return JSON.parse(localStorage.getItem("bisTimesFold")) || {}; } catch (e) { return {}; }
+    }
+    // 받은 도착 시각 기억은 이 기기에 저장한다(앱을 다시 열어도 이어서 줄인다. 못 읽으면 빈 기억)
+    function readMemo() {
+      try { return loadAnchorMemo(localStorage.getItem("bisEtaMemo"), Date.now()); } catch (e) { return {}; }
     }
     function drawTimes() {
       elTimes.innerHTML = DIRS.map(function (d) { return renderTimeBox(d, state.stats, state.fold[d]); }).join("");
@@ -246,6 +268,7 @@ if (!window.BIS_NO_INIT && document.body && document.body.getAttribute("data-app
           state.rows[d] = applyAnchors(buildRows(state.cfg, sids, popups), state.memo, d, now);
           state.status[d] = { failed: sids.filter(function (sid) { return !popups[sid]; }).length, total: sids.length };
         });
+        try { localStorage.setItem("bisEtaMemo", JSON.stringify(state.memo)); } catch (e) { /* 저장 못 해도 동작은 한다 */ }
         state.okStations = ok; state.checkedAt = now; state.loading = false; draw();
       });
     }

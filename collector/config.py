@@ -82,9 +82,19 @@ TURNAROUND_ARRIVING = {
 }
 
 
+# 학명리를 지난 뒤 동명 정류소를 거쳐 멀어지는 방향(칠곡 BIS 노선 정류장 순서로 확인 2026-10-24). 노선 번호는 허용이어도
+# 이 방향은 동명 정류소에 와도 학명리행이 아니다: 300 30010(->북부정류장), 34/34-1 의 10(->송산3리, 돌아올 땐 3420/34-120 으로 다시 지난다).
+# 36/36-1 의 10 과 구미 885 88510 은 동명이 종점이고 거기서 학명리행으로 되돌아가서 빼지 않는다.
+AWAY_ROUTEIDS = {
+    "hakmyeong": {"CGB30010", "CGB3410", "CGB34-110"},
+}
+
+
 def is_allowed(routeid: str, routeno: str, direction: str | None = None) -> bool:
     if direction in ALL_ROUTES_DIRECTIONS:
         return True
+    if routeid in AWAY_ROUTEIDS.get(direction, set()):
+        return False
     extra = EXTRA_ALLOWED.get(direction, {})
     if routeno == "칠곡3":
         return routeid in ALLOWED_CHILGOK3_ROUTEIDS | extra.get("chilgok3_routeids", set())

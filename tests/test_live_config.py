@@ -144,3 +144,10 @@ def test_live_config_tracked_routes_know_their_terminus():
         for t in d["tracked"]:
             assert isinstance(t["last_ord"], int), (name, t["routeid"])
             assert t["last_ord"] >= max(b["ord"] for b in t["boarding"]), (name, t["routeid"])
+
+
+def test_live_config_hakmyeong_drops_routes_heading_away():
+    d = _load()["directions"]["hakmyeong"]
+    assert {"CGB30010", "CGB3410", "CGB34-110"} <= set(d["away_routeids"])
+    assert "CGB30010" not in {t["routeid"] for t in d["tracked"]}
+    assert "CGB30020" in {t["routeid"] for t in d["tracked"]}

@@ -42,8 +42,9 @@ def build_directions() -> dict:
             "chilgok3_routeids": sorted(
                 config.ALLOWED_CHILGOK3_ROUTEIDS | extra.get("chilgok3_routeids", set())),
             "all_routes": name in config.ALL_ROUTES_DIRECTIONS,  # 이 방향은 노선 필터 없이 전부 보여준다
-            # 위치 표시용: 노선별 (도시, routeId, 승차 정류장의 노선 내 nodeord)
-            "tracked": tracked[name],
+            "away_routeids": sorted(config.AWAY_ROUTEIDS.get(name, set())),  # 학명리를 지나 멀어지는 방향(노선 번호와 무관하게 뺀다)
+            # 위치 표시용: 노선별 (도시, routeId, 승차 정류장의 노선 내 nodeord). 허용 안 되는 방향은 뺀다
+            "tracked": [t for t in tracked[name] if config.is_allowed(t["routeid"], t["routeno"], name)],
             # 종점에서 되돌아가는 왕복 노선: 종점에 다가오는 버스를 "곧 도착"으로 보여준다
             "arriving": _arriving(name, tracked),
         }

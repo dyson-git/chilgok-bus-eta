@@ -69,20 +69,12 @@ window.LIVE_CONFIG = {
         "DGB4090003015"
       ],
       "all_routes": false,
+      "away_routeids": [
+        "CGB30010",
+        "CGB34-110",
+        "CGB3410"
+      ],
       "tracked": [
-        {
-          "city_code": "37390",
-          "routeid": "CGB30010",
-          "routeno": "300",
-          "last_ord": 74,
-          "boarding": [
-            {
-              "node_id": "CGB4870",
-              "name": "동명교통",
-              "ord": 44
-            }
-          ]
-        },
         {
           "city_code": "37390",
           "routeid": "CGB30020",
@@ -108,19 +100,6 @@ window.LIVE_CONFIG = {
         },
         {
           "city_code": "37390",
-          "routeid": "CGB3410",
-          "routeno": "34",
-          "last_ord": 48,
-          "boarding": [
-            {
-              "node_id": "CGB4870",
-              "name": "동명교통",
-              "ord": 38
-            }
-          ]
-        },
-        {
-          "city_code": "37390",
           "routeid": "CGB3420",
           "routeno": "34",
           "last_ord": 46,
@@ -134,19 +113,6 @@ window.LIVE_CONFIG = {
               "node_id": "CGB4871",
               "name": "동명교통",
               "ord": 10
-            }
-          ]
-        },
-        {
-          "city_code": "37390",
-          "routeid": "CGB34-110",
-          "routeno": "34-1",
-          "last_ord": 53,
-          "boarding": [
-            {
-              "node_id": "CGB4870",
-              "name": "동명교통",
-              "ord": 43
             }
           ]
         },
@@ -435,6 +401,7 @@ window.LIVE_CONFIG = {
         "DGB4090003023"
       ],
       "all_routes": true,
+      "away_routeids": [],
       "tracked": [
         {
           "city_code": "37390",
