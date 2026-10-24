@@ -34,7 +34,7 @@ const ALLOWED_ROUTES = new Set([
 ]);
 
 // 칠곡 BIS STOP_ID: 학명리 건너2, 학명동, 동명면우체국, 동명면행정복지센터, 동명교통
-const ALLOWED_BIS_STOPS = new Set(["2479", "2481", "2141", "2142", "4870", "4871"]);
+const ALLOWED_BIS_STOPS = new Set(["2479", "2481", "2483", "2485", "2141", "2142", "4870", "4871"]);
 
 function cors(origin) {
   const h = { "Cache-Control": "no-store", "Vary": "Origin" };
