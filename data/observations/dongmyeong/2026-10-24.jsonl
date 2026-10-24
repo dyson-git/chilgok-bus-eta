@@ -60,3 +60,4 @@
 {"polled_at": "2026-10-24T16:35:03+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-24T16:40:03+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-24T16:45:04+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-24T16:50:04+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 39.833333333333336, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
