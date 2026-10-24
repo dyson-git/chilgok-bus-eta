@@ -6,6 +6,7 @@
 //   GET /all                                → 허용된 모든 정류소를 한 번에 조회 {fetched_at, results}
 //   GET /loc                                → 허용된 모든 노선의 운행 중 버스 "현재 위치" {fetched_at, results}
 //   GET /bis?stop=2479                      → 칠곡 BIS 정류장 도착정보 HTML (비교용)
+//   GET /dgb?bs=7181001900                  → 대구 BIS 정류장 도착정보 JSON (칠곡3·급행9-3)
 
 const ALLOWED_ORIGINS = [
   "https://dyson-git.github.io",
@@ -35,6 +36,8 @@ const ALLOWED_ROUTES = new Set([
 
 // 칠곡 BIS STOP_ID: 학명리 건너2, 학명동, 동명면우체국, 동명면행정복지센터, 동명교통
 const ALLOWED_BIS_STOPS = new Set(["2479", "2481", "2483", "2485", "2141", "2142", "4870", "4871"]);
+// 대구 BIS bsId: 학명리 건너2, 학명리, 학명리(등골마을입구) - 칠곡3·급행9-3 은 대구 시스템 버스라 칠곡 BIS 에 실시간이 없다
+const ALLOWED_DGB_STOPS = new Set(["7181001900", "3690003070", "3690003090"]);
 
 function cors(origin) {
   const h = { "Cache-Control": "no-store", "Vary": "Origin" };
@@ -202,6 +205,16 @@ export default {
       return new Response(await r.text(), {
         status: r.status,
         headers: { ...headers, "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    if (url.pathname === "/dgb") {
+      const bs = url.searchParams.get("bs") || "";
+      if (!ALLOWED_DGB_STOPS.has(bs)) return new Response("stop not allowed", { status: 403, headers });
+      const r = await fetch("https://businfo.daegu.go.kr:8095/dbms_web_api/realtime/arr/" + bs, { headers: { "User-Agent": "Mozilla/5.0" } });
+      return new Response(await r.text(), {
+        status: r.status,
+        headers: { ...headers, "Content-Type": "application/json; charset=utf-8" },
       });
     }
 

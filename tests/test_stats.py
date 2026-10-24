@@ -68,3 +68,40 @@ def test_excludes_dates_outside_rolling_window():
 
 def test_empty_input_returns_empty_list():
     assert compute_stats({}, as_of=date(2026, 10, 21)) == []
+
+
+# ---- 2026-10-24 사용자 지시: "칠곡3번이 하루 여러 대 있는데 어젠 3시, 오늘 11시를 평균 내면 어떡하니.
+#      비슷한 시간대에만 카운트해야지" -> N번째 차가 아니라 시각이 가까운 것끼리(한 줄 안 최대 30분) 묶는다 ----
+
+def _arr(d, h, m, routeno="칠곡3"):
+    return ConfirmedArrival(datetime(2026, 10, d, h, m), "R", routeno)
+
+
+def test_same_route_at_far_apart_times_on_different_days_is_not_averaged():
+    data = {date(2026, 10, 23): [_arr(23, 15, 3)], date(2026, 10, 24): [_arr(24, 9, 43)]}
+    result = compute_stats(data, as_of=date(2026, 10, 24))
+    assert [(s.min_time, s.max_time, s.sample_count) for s in result] == [(time(9, 43), time(9, 43), 1), (time(15, 3), time(15, 3), 1)]
+
+
+def test_same_route_at_similar_times_across_days_is_one_row():
+    data = {date(2026, 10, 23): [_arr(23, 12, 1)], date(2026, 10, 24): [_arr(24, 12, 20)]}
+    (row,) = compute_stats(data, as_of=date(2026, 10, 24))
+    assert (row.min_time, row.max_time, row.avg_time, row.sample_count) == (time(12, 1), time(12, 20), time(12, 10), 2)
+
+
+def test_one_row_never_spreads_more_than_30_minutes():
+    data = {date(2026, 10, 22): [_arr(22, 10, 0)], date(2026, 10, 23): [_arr(23, 10, 25)], date(2026, 10, 24): [_arr(24, 10, 40)]}
+    result = compute_stats(data, as_of=date(2026, 10, 24))
+    assert [(s.min_time, s.max_time, s.sample_count) for s in result] == [(time(10, 0), time(10, 25), 2), (time(10, 40), time(10, 40), 1)]
+
+
+def test_two_buses_of_the_same_route_on_the_same_day_stay_in_separate_rows():
+    data = {date(2026, 10, 24): [_arr(24, 9, 0), _arr(24, 9, 20)]}
+    result = compute_stats(data, as_of=date(2026, 10, 24))
+    assert [(s.min_time, s.sample_count) for s in result] == [(time(9, 0), 1), (time(9, 20), 1)]
+
+
+def test_other_route_numbers_are_never_mixed_into_the_row():
+    data = {date(2026, 10, 23): [_arr(23, 12, 1)], date(2026, 10, 24): [_arr(24, 12, 5, routeno="급행9-3")]}
+    result = compute_stats(data, as_of=date(2026, 10, 24))
+    assert sorted((s.routeno, s.sample_count) for s in result) == [("급행9-3", 1), ("칠곡3", 1)]

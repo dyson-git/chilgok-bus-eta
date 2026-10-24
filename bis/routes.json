@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-24T11:56+09:00",
+ "generated": "2026-10-24T13:10+09:00",
  "stops": {
   "2479": {
    "direction": "dongmyeong",
@@ -214,6 +214,67 @@
    ],
    "gaps": {
     "9-310": {
+     "stops": 3,
+     "board": "동명면우체국"
+    }
+   },
+   "offset_min": 3
+  },
+  "dgb:7181001900": {
+   "source": "daegu",
+   "direction": "dongmyeong",
+   "name": "학명리 건너2",
+   "route_nos": [
+    "칠곡3",
+    "급행9-3"
+   ],
+   "route_ids": null
+  },
+  "dgb:3690003070": {
+   "source": "daegu",
+   "direction": "hakmyeong",
+   "name": "학명리",
+   "route_nos": [
+    "칠곡3"
+   ],
+   "route_ids": [
+    "dgb:4090003001",
+    "dgb:4090003011",
+    "dgb:4090003014",
+    "dgb:4090003015"
+   ],
+   "gaps": {
+    "dgb:4090003001": {
+     "stops": 8,
+     "board": "동명면행정복지센터"
+    },
+    "dgb:4090003011": {
+     "stops": 8,
+     "board": "동명면행정복지센터"
+    },
+    "dgb:4090003014": {
+     "stops": 8,
+     "board": "동명면행정복지센터"
+    },
+    "dgb:4090003015": {
+     "stops": 8,
+     "board": "동명면행정복지센터"
+    }
+   },
+   "offset_min": 10
+  },
+  "dgb:3690003090": {
+   "source": "daegu",
+   "direction": "hakmyeong",
+   "name": "학명리(등골마을입구)",
+   "route_nos": [
+    "급행9-3"
+   ],
+   "route_ids": [
+    "dgb:1000009300"
+   ],
+   "gaps": {
+    "dgb:1000009300": {
      "stops": 3,
      "board": "동명면우체국"
     }

@@ -4,7 +4,10 @@
 - 동명행 = 학명리 건너2(2479). 동명행 전용 정류장이라 노선을 거르지 않는다(route_ids = null).
 - 학명리행 = 학명리 정류소(2483, 학명리 방향 버스가 서는 곳. 건너2 와 다른 정류장). 사용자 방식(2026-10-24):
   학명리 정류소 도착 시간에서 10분을 빼서 동명 기준으로 보여준다. 정거장 수는 노선 정류장 순서로 동명 정류장까지 실제 개수를 뺀다.
-  동명 정류장을 먼저 지나는 노선만 남긴다. 9-3 은 학명리 정류소에 안 서고 등골마을입구(2485)에 서서 그 정류장으로 따로 받는다."""
+  동명 정류장을 먼저 지나는 노선만 남긴다. 9-3 은 학명리 정류소에 안 서고 등골마을입구(2485)에 서서 그 정류장으로 따로 받는다.
+- 칠곡3·급행9-3 은 대구 시스템 버스라 칠곡 버스정보시스템에 실시간이 없다(2026-10-24 확인). 이 두 노선만 대구 버스정보시스템
+  정류장(키 "dgb:<bsId>", source "daegu")으로 같은 방식으로 받는다: 동명행 = 대구 학명리 건너2, 학명리행 = 대구 학명리 -10분,
+  급행9-3 은 대구 등골마을입구 -3분."""
 import json
 import re
 import sys
@@ -28,10 +31,56 @@ OFFSET_MIN = {"2483": 10, "2485": 3}
 REF_IDS = ["12142", "24871", "12141", "24870"]
 OUT = Path(__file__).with_name("routes.json")
 
+DGB = "https://businfo.daegu.go.kr:8095/dbms_web_api/"
+# 대구 bsId -> (방향, 받을 노선 번호, 빼는 분). worker/relay.js ALLOWED_DGB_STOPS 안에 있어야 중계가 전달한다.
+DAEGU_STOPS = {
+    "7181001900": ("dongmyeong", ["칠곡3", "급행9-3"], None),   # 학명리 건너2
+    "3690003070": ("hakmyeong", ["칠곡3"], 10),                 # 학명리 (사용자가 정한 10분)
+    "3690003090": ("hakmyeong", ["급행9-3"], 3),                # 학명리(등골마을입구): 동명면우체국에서 3정거장 -> 3분
+}
+DAEGU_REF_NAMES = ["동명면행정복지센터", "동명교통", "동명면우체국"]   # 정거장 수를 셀 동명 정류장, 앞쪽 우선
+
 
 def post(path, **data):
     req = urllib.request.Request(BASE + path, data=urllib.parse.urlencode(data).encode(), headers=HEADERS)
     return urllib.request.urlopen(req, timeout=30).read().decode("utf-8", "replace")
+
+
+def dget(path):
+    req = urllib.request.Request(DGB + path, headers={"User-Agent": "Mozilla/5.0"})
+    return json.loads(urllib.request.urlopen(req, timeout=30).read()).get("body") or []
+
+
+def daegu_stops():
+    """대구 정류장 설정. 노선 정류장 목록(bs/route)을 칠곡 StopListByRoute 모양으로 바꿔 stops_between 을 그대로 쓴다."""
+    route_nos = sorted({no for _, nos, _ in DAEGU_STOPS.values() for no in nos})
+    routes, lists, names = [], {}, {}
+    for no in route_nos:
+        routes += [r for r in dget("route/search?searchText=" + urllib.parse.quote(no)) if r.get("routeNo") == no]
+        time.sleep(0.25)
+    for r in routes:
+        lists[r["routeId"]] = [{"WAYPOINT_ORD": int(x["seq"]), "STOP_KNAME": x["bsNm"], "STOP_SERVICEID": x["bsId"]}
+                               for x in dget("bs/route?routeId=" + r["routeId"])]
+        names.update({x["STOP_SERVICEID"]: x["STOP_KNAME"] for x in lists[r["routeId"]]})
+        time.sleep(0.25)
+    out = {}
+    for bs, (direction, nos, offset) in DAEGU_STOPS.items():
+        entry = {"source": "daegu", "direction": direction, "name": names.get(bs, bs), "route_nos": nos}
+        if direction == "dongmyeong":
+            entry["route_ids"] = None
+        else:
+            gaps = {}
+            for r in routes:
+                if r["routeNo"] not in nos:
+                    continue
+                sl = lists[r["routeId"]]
+                ref_ids = [x["STOP_SERVICEID"] for nm in DAEGU_REF_NAMES for x in sl if x["STOP_KNAME"] == nm]
+                found = stops_between(sl, ref_ids, bs)
+                if found:
+                    gaps["dgb:" + r["routeId"]] = {"stops": found[0], "board": found[1]}
+            entry.update({"route_ids": list(gaps), "gaps": gaps, "offset_min": offset})
+        out["dgb:" + bs] = entry
+    return out
 
 
 def main():
@@ -67,13 +116,14 @@ def main():
                 taken.update(gaps)
                 entry.update({"route_ids": list(gaps), "gaps": gaps, "offset_min": OFFSET_MIN[sid]})
             out_stops[sid] = entry
+    out_stops.update(daegu_stops())
     kst = timezone(timedelta(hours=9))
     OUT.write_text(json.dumps({"generated": datetime.now(kst).isoformat(timespec="minutes"), "stops": out_stops}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     for sid, s in out_stops.items():
         if s["route_ids"] is None:
-            names = "전부"
+            names = "/".join(s["route_nos"]) + " 전부" if "route_nos" in s else "전부"
         else:
-            names = ", ".join("%s(%s, %s까지 %d정거장)" % (s["routes"][i]["no"], i, s["gaps"][i]["board"], s["gaps"][i]["stops"]) for i in s["route_ids"]) or "없음"
+            names = ", ".join("%s(%s, %s까지 %d정거장)" % (s["routes"][i]["no"] if "routes" in s else "", i, s["gaps"][i]["board"], s["gaps"][i]["stops"]) for i in s["route_ids"]) or "없음"
         print("%s %s [%s]%s: %s" % (sid, s["name"], s["direction"], " -%d분" % s["offset_min"] if "offset_min" in s else "", names))
 
 

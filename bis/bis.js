@@ -1,6 +1,7 @@
 // 칠곡 버스정보시스템(bus.chilgok.go.kr) 기반 앱 (두 번째 갈래, 2026-10-24). 화면은 기존 앱(index.html)과 같다:
 // 위 = 시간표(터치로 펴기/접기), 아래 = 동명 가는 버스 / 학명리 가는 버스(앱을 열면 지금 버스, 카드를 터치하면 새로고침).
 // 정류장 팝업(중계 /bis?stop=<번호> 가 그대로 전달)을 읽어 "노선당 가장 빠른 버스"를 보여준다.
+// 칠곡3·급행9-3 만 대구 버스정보시스템(중계 /dgb?bs=<번호>)에서 같은 방식으로 받는다(칠곡 시스템에 실시간이 없다).
 // 규칙(사용자 지시): 시간을 받으면 거기서 초 단위로 줄이고, 못 받아도 (옛 시간 - 지난 시간)으로 계속 줄이고,
 // 새 값이 오면 그 값으로 갱신한다. N정류장 전은 항상 보인다.
 "use strict";
@@ -48,7 +49,25 @@ function parsePopup(htmlText) {
   });
 }
 
-// cfg.stops[station] = {name, route_ids|null, gaps?, offset_min?}. popups[station] = 파싱한 줄들(못 받았으면 없음).
+// 대구 버스정보시스템 도착정보 JSON(중계 /dgb?bs=<번호>) -> parsePopup 과 같은 모양의 줄. 칠곡3·급행9-3 은 대구 시스템 버스라
+// 칠곡 버스정보시스템에 실시간이 없어서 이걸로 받는다. route_id 앞에 "dgb:" 를 붙여 칠곡 노선과 섞이지 않게 한다.
+// arrState 가 "N분"이면 N분, "곧"이 들어가면 0분, 그 밖(기점출발예정·출발예정 등)은 시간을 만들지 않는다. bsGap 이 음수면 정류장 수 없음.
+function parseDaegu(json) {
+  var list = json && json.body && Array.isArray(json.body.list) ? json.body.list : [];
+  return list.map(function (r) {
+    var st = String(r.arrState || ""), m = /(\d+)\s*분/.exec(st), gap = Number(r.bsGap);
+    return {
+      route_id: "dgb:" + r.routeId,
+      route_no: String(r.routeNo || ""),
+      ends: String(r.routeNote || ""),
+      stops_away: isFinite(gap) && gap >= 0 ? gap : null,
+      minutes: m ? Number(m[1]) : (/곧/.test(st) ? 0 : null),
+      text: st
+    };
+  });
+}
+
+// cfg.stops[station] = {name, route_ids|null, route_nos?, gaps?, offset_min?}. popups[station] = 파싱한 줄들(못 받았으면 없음).
 // 허용된 노선만, 노선당 가장 빠른 한 줄(같은 노선이 여러 정류장에서 나오면 가장 빨리 오는 정류장). 버스가 없는 노선은 줄이 없다.
 // gaps 가 있는 정류장(학명리 정류소)은 사용자 방식: 그 정류소 시간에서 offset_min 분을 빼서 동명 기준으로 보여주고,
 // 정거장 수는 동명 정류장까지 실제 개수(gaps[노선].stops 를 뺀다)로 바꾼다. 이미 동명을 지난 버스와 정거장 수를 모르는 버스는 뺀다.
@@ -60,6 +79,7 @@ function buildRows(cfg, stationIds, popups) {
     list.forEach(function (r) {
       if (r.minutes === null && r.stops_away === null) return;
       if (st.route_ids && st.route_ids.indexOf(r.route_id) < 0) return;
+      if (st.route_nos && st.route_nos.indexOf(r.route_no) < 0) return;
       var row = { route_id: r.route_id, route_no: r.route_no, ends: r.ends, station_id: sid, station_name: st.name,
         stops_away: r.stops_away, minutes: r.minutes };
       var gap = st.gaps ? st.gaps[r.route_id] : null;
@@ -158,7 +178,7 @@ function renderTimeBox(dir, stats, folded) {
     esc(TIME_TITLE[dir]) + "</h2>" + (folded ? '<p class="note">눌러서 펼치기</p>' : renderSlots(rows)) + "</section>";
 }
 
-window.BisLive = { parsePopup: parsePopup, countdownText: countdownText, buildRows: buildRows, applyAnchors: applyAnchors,
+window.BisLive = { parsePopup: parsePopup, parseDaegu: parseDaegu, countdownText: countdownText, buildRows: buildRows, applyAnchors: applyAnchors,
   renderCard: renderCard, renderTimeBox: renderTimeBox };
 
 // ---- 화면 연결 (bis/index.html 의 <body data-app="bis"> 에서만. 검사 페이지는 건너뛴다) ----
@@ -187,11 +207,17 @@ if (!window.BIS_NO_INIT && document.body && document.body.getAttribute("data-app
       elChecked.textContent = state.checkedAt ? (state.okStations ? "실시간 확인 " : "실시간 연결 안 됨 · ") + clockHMS(state.checkedAt) : "";
     }
 
+    // 칠곡 정류장은 /bis(HTML), 대구 정류장("dgb:<번호>")은 /dgb(JSON). 대구는 지금 오는 버스가 없으면 빈 목록이 정상이다.
     function fetchStop(relay, sid) {
       var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 12000);
-      return fetch(relay + "/bis?stop=" + encodeURIComponent(sid), { cache: "no-store", signal: ctl.signal })
-        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
-        .then(function (t) { var rows = parsePopup(t); if (!rows.length) throw new Error("빈 응답"); return rows; })
+      var daegu = state.cfg.stops[sid].source === "daegu";
+      var url = daegu ? relay + "/dgb?bs=" + encodeURIComponent(sid.slice(4)) : relay + "/bis?stop=" + encodeURIComponent(sid);
+      return fetch(url, { cache: "no-store", signal: ctl.signal })
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return daegu ? r.json() : r.text(); })
+        .then(function (t) {
+          if (daegu) { if (!t || !t.header || !t.header.success) throw new Error("대구 응답 오류"); return parseDaegu(t); }
+          var rows = parsePopup(t); if (!rows.length) throw new Error("빈 응답"); return rows;
+        })
         .catch(function () { return null; })
         .then(function (rows) { clearTimeout(timer); return rows; });
     }

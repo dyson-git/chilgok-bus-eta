@@ -92,6 +92,25 @@
      [bf.indexOf("<table") >= 0, bf.indexOf("눌러서 펼치기") >= 0, bo.indexOf("<table") >= 0, bo.indexOf("300번") >= 0, bo.indexOf("10:50~10:56") >= 0,
       bf.indexOf('data-fold="dongmyeong"') >= 0, bf.indexOf('aria-expanded="false"') >= 0, bo.indexOf('aria-expanded="true"') >= 0], [false, true, true, true, true, true, true, true]);
   eq("기록이 없으면 박스는 남고 안내 문구", B.renderTimeBox("hakmyeong", st2, false).indexOf("기록이 모이는 중") >= 0, true);
+  // ---- 대구 버스정보시스템(칠곡3·급행9-3) ----
+  var dj = { header: { success: true }, body: { block: false, list: [
+    { routeId: "4090003014", routeNo: "칠곡3", routeNote: "동명-칠곡시장-동명-경운대-예술대-동명", bsGap: 49, bsNm: "칠곡경북대병원", vhcNo2: "2673", arrState: "60분" },
+    { routeId: "1000009300", routeNo: "급행9-3", bsGap: -2, bsNm: "14:55 기점출발예정", arrState: "기점출발예정" },
+    { routeId: "4090003021", routeNo: "칠곡3", routeNote: "동명-기성-동명", bsGap: 2, bsNm: "x", arrState: "곧 도착" },
+    { routeId: "3000527000", routeNo: "527", bsGap: 4, bsNm: "영진주유소", arrState: "5분" } ] } };
+  var dr = B.parseDaegu(dj);
+  eq("대구 응답 -> 줄(노선 id 앞에 dgb:, 정류장 수, 분)", dr.map(function (r) { return [r.route_id, r.route_no, r.stops_away, r.minutes]; }),
+     [["dgb:4090003014", "칠곡3", 49, 60], ["dgb:1000009300", "급행9-3", null, null], ["dgb:4090003021", "칠곡3", 2, 0], ["dgb:3000527000", "527", 4, 5]]);
+  eq("기점출발예정(아직 안 떠난 차)은 시간을 만들지 않는다 / 빈 응답은 빈 목록", [dr[1].minutes, B.parseDaegu({ body: {} }).length, B.parseDaegu(null).length], [null, 0, 0]);
+  var dcfg = { stops: {
+    "dgb:7181001900": { name: "학명리 건너2", route_ids: null, route_nos: ["칠곡3", "급행9-3"] },
+    "dgb:3690003070": { name: "학명리", route_ids: ["dgb:4090003014"], route_nos: ["칠곡3", "급행9-3"], offset_min: 10,
+      gaps: { "dgb:4090003014": { stops: 8, board: "동명면행정복지센터" } } } } };
+  eq("동명행(대구 건너2): 칠곡3·급행9-3 만, 다른 노선(527)은 칠곡 시스템 몫이라 뺀다",
+     B.buildRows(dcfg, ["dgb:7181001900"], { "dgb:7181001900": dr }).map(function (r) { return r.route_id; }), ["dgb:4090003014", "dgb:4090003021"]);
+  eq("학명리행(대구 학명리): 학명리 가는 칠곡3 만, 60-10=50분, 49-8=41정류장, 동명면행정복지센터에서 타기",
+     B.buildRows(dcfg, ["dgb:3690003070"], { "dgb:3690003070": dr }).map(function (r) { return [r.route_id, r.minutes, r.stops_away, r.station_name]; }),
+     [["dgb:4090003014", 50, 41, "동명면행정복지센터"]]);
   out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
   document.getElementById("out").textContent = out.join("\n");
 })();

@@ -110,9 +110,43 @@ def test_routes_json_uses_gonneo2_for_dongmyeong_and_the_hakmyeong_stop_for_hakm
     cfg = json.loads((Path(__file__).resolve().parents[1] / "bis" / "routes.json").read_text(encoding="utf-8"))
     by_dir = {}
     for sid, st in cfg["stops"].items():
-        by_dir.setdefault(st["direction"], []).append(sid)
+        if st.get("source") != "daegu":        # 칠곡 시스템 정류장만 (대구 정류장은 아래 대구 테스트에서 본다)
+            by_dir.setdefault(st["direction"], []).append(sid)
     assert by_dir["dongmyeong"] == ["2479"]                 # 학명리 건너2 = 동명행
     assert "2483" in by_dir["hakmyeong"] and "2479" not in by_dir["hakmyeong"]   # 학명리 정류소 = 학명리행, 건너2 와 다르다
     st = cfg["stops"]["2483"]
     assert st["offset_min"] == 10
     assert st["route_ids"] and all(st["gaps"][r]["stops"] > 0 and st["gaps"][r]["board"] for r in st["route_ids"])
+
+
+# ---- 칠곡3·급행9-3 은 대구 시스템 버스라 칠곡 버스정보시스템에 실시간이 없다(2026-10-24 12:59 확인: 칠곡 0대, 대구 3대).
+#      칠곡 시스템을 기본으로 쓰고 이 두 노선만 대구 버스정보시스템에서 받는다 ----
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_relay_passes_daegu_arrivals_only_for_allowed_stops():
+    js = (ROOT / "worker" / "relay.js").read_text(encoding="utf-8")
+    allowed = re.search(r"ALLOWED_DGB_STOPS = new Set\(\[([^\]]*)\]", js).group(1)
+    for bs in ("7181001900", "3690003070", "3690003090"):
+        assert '"%s"' % bs in allowed
+    assert "businfo.daegu.go.kr:8095/dbms_web_api/realtime/arr/" in js
+    assert 'url.pathname === "/dgb"' in js
+
+
+def test_routes_json_takes_only_chilgok3_and_express_9_3_from_daegu():
+    stops = json.loads((ROOT / "bis" / "routes.json").read_text(encoding="utf-8"))["stops"]
+    gonneo2 = stops["dgb:7181001900"]
+    assert (gonneo2["source"], gonneo2["direction"], gonneo2["route_nos"]) == ("daegu", "dongmyeong", ["칠곡3", "급행9-3"])
+    hak = stops["dgb:3690003070"]   # 대구 시스템의 학명리 정류소(학명리 방향) - 시간 -10분
+    assert (hak["source"], hak["direction"], hak["offset_min"]) == ("daegu", "hakmyeong", 10)
+    assert hak["gaps"]["dgb:4090003014"] == {"stops": 8, "board": "동명면행정복지센터"}
+    assert "dgb:4090003021" not in hak["route_ids"]          # 학명리에 안 가는 칠곡3
+    express = stops["dgb:3690003090"]                         # 급행9-3 은 학명리 정류소에 안 서고 등골마을입구에 선다
+    assert express["route_ids"] == ["dgb:1000009300"] and express["gaps"]["dgb:1000009300"]["stops"] == 3
+
+
+def test_timetable_is_below_the_bus_cards_in_both_apps():
+    for page in ("index.html", "bis/index.html"):
+        html = (ROOT / page).read_text(encoding="utf-8")
+        assert html.index('id="times"') > html.index('id="card-hakmyeong"'), page
+        assert html.index('id="times"') > html.index('id="checked"'), page
