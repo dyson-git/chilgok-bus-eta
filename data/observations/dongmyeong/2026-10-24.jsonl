@@ -7,3 +7,4 @@
 {"polled_at": "2026-10-24T12:10:04+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-24T12:15:05+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 42.93333333333333, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": [{"city_code": "37390", "node_id": "CGB2479", "error": "ReadTimeout: HTTPSConnectionPool(host='apis.data.go.kr', port=443): Read timed out. (read timeout=15)"}]}
 {"polled_at": "2026-10-24T12:20:05+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 38.25, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-24T12:25:05+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 33.016666666666666, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
