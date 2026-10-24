@@ -149,7 +149,7 @@ function renderCard(dir, rows, status, now) {
       return '<div class="bus"><span>' + esc(b.route_no) + '번</span><span class="when"' + attr + ">" + esc(big) + "</span></div>" +
         (where ? '<div class="where">' + where + "</div>" : "");
     }).join("");
-    html += '<p class="note">시간은 칠곡군 버스정보시스템이 분 단위로 알려준 값에서 초 단위로 줄여 보여줘요</p>';
+    html += '<p class="note">시간은 칠곡군 버스정보시스템(칠곡3·급행9-3은 대구 버스정보시스템)이 분 단위로 알려준 값에서 초 단위로 줄여 보여줘요</p>';
     if (status.failed > 0) html += '<p class="note">일부 정류장 정보가 늦어서 직전 값을 이어 보여줘요</p>';
   } else if (status.failed > 0) {
     html += '<div class="warn">칠곡군 버스정보시스템에서 정보를 못 받았어요. 잠시 후 다시 확인해요</div>';
