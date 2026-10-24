@@ -17,14 +17,6 @@
       "sample_count": 1
     },
     {
-      "routeno": "300",
-      "slot_index": 1,
-      "min_time": "10:58",
-      "max_time": "10:58",
-      "avg_time": "10:58",
-      "sample_count": 1
-    },
-    {
       "routeno": "급행9-3",
       "slot_index": 1,
       "min_time": "11:23",
@@ -49,14 +41,6 @@
       "sample_count": 3
     },
     {
-      "routeno": "300",
-      "slot_index": 2,
-      "min_time": "14:17",
-      "max_time": "14:17",
-      "avg_time": "14:17",
-      "sample_count": 1
-    },
-    {
       "routeno": "칠곡3",
       "slot_index": 4,
       "min_time": "15:05",
@@ -66,7 +50,7 @@
     },
     {
       "routeno": "300",
-      "slot_index": 3,
+      "slot_index": 1,
       "min_time": "16:07",
       "max_time": "16:07",
       "avg_time": "16:07",
@@ -78,14 +62,6 @@
       "min_time": "17:24",
       "max_time": "17:24",
       "avg_time": "17:24",
-      "sample_count": 1
-    },
-    {
-      "routeno": "300",
-      "slot_index": 4,
-      "min_time": "18:08",
-      "max_time": "18:08",
-      "avg_time": "18:08",
       "sample_count": 1
     },
     {
