@@ -1,16 +1,16 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-10-24T18:10:05+09:00",
+    "polled_at": "2026-10-24T18:15:05+09:00",
     "observations": [],
     "errors": []
   },
   "dongmyeong": {
-    "polled_at": "2026-10-24T18:10:05+09:00",
+    "polled_at": "2026-10-24T18:15:05+09:00",
     "observations": [
       {
         "routeid": "GMB88510",
         "routeno": "885",
-        "eta_min": 39.0
+        "eta_min": 36.53333333333333
       }
     ],
     "errors": []
