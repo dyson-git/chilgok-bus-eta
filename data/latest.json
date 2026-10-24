@@ -1,12 +1,18 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-10-24T14:40:03+09:00",
+    "polled_at": "2026-10-24T14:45:05+09:00",
     "observations": [],
     "errors": []
   },
   "dongmyeong": {
-    "polled_at": "2026-10-24T14:40:03+09:00",
-    "observations": [],
+    "polled_at": "2026-10-24T14:45:05+09:00",
+    "observations": [
+      {
+        "routeid": "DGB4090003014",
+        "routeno": "칠곡3",
+        "eta_min": 15.35
+      }
+    ],
     "errors": []
   }
 }
