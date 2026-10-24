@@ -79,3 +79,4 @@
 {"polled_at": "2026-10-24T18:10:05+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 39.0, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
 {"polled_at": "2026-10-24T18:15:05+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 36.53333333333333, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
 {"polled_at": "2026-10-24T18:20:05+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 28.366666666666667, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-24T18:25:05+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 23.5, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
