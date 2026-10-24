@@ -1,11 +1,11 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-10-24T17:25:05+09:00",
+    "polled_at": "2026-10-24T17:30:05+09:00",
     "observations": [],
     "errors": []
   },
   "dongmyeong": {
-    "polled_at": "2026-10-24T17:25:05+09:00",
+    "polled_at": "2026-10-24T17:30:05+09:00",
     "observations": [],
     "errors": []
   }
