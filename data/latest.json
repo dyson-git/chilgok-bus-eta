@@ -1,30 +1,30 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-10-24T12:15:05+09:00",
+    "polled_at": "2026-10-24T12:20:05+09:00",
     "observations": [
       {
         "routeid": "CGB30020",
         "routeno": "300",
-        "eta_min": 8.616666666666667
-      }
-    ],
-    "errors": []
-  },
-  "dongmyeong": {
-    "polled_at": "2026-10-24T12:15:05+09:00",
-    "observations": [
-      {
-        "routeid": "GMB88510",
-        "routeno": "885",
-        "eta_min": 42.93333333333333
+        "eta_min": 2.1
       }
     ],
     "errors": [
       {
         "city_code": "37390",
-        "node_id": "CGB2479",
+        "node_id": "CGB4870",
         "error": "ReadTimeout: HTTPSConnectionPool(host='apis.data.go.kr', port=443): Read timed out. (read timeout=15)"
       }
     ]
+  },
+  "dongmyeong": {
+    "polled_at": "2026-10-24T12:20:05+09:00",
+    "observations": [
+      {
+        "routeid": "GMB88510",
+        "routeno": "885",
+        "eta_min": 38.25
+      }
+    ],
+    "errors": []
   }
 }
