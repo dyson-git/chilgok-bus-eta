@@ -1,0 +1,264 @@
+<!doctype html><meta charset="utf-8"><title>loc check</title>
+<body>
+<button id="refresh"></button><span id="checked"></span><div id="times"></div>
+<div id="card-dongmyeong"></div><div id="card-hakmyeong"></div>
+<button id="refbtn"></button><div id="refbody"></div><div id="reference"></div>
+<pre id="out">RUNNING</pre>
+<script src="../../live-config.js"></script>
+<script src="../../app.js"></script>
+<script>
+window.onerror = function (m, s, l) { document.getElementById("out").textContent = "ERROR " + m + " @" + l; };
+(function () {
+  var out = [], fails = 0;
+  function eq(name, got, want) {
+    var ok = JSON.stringify(got) === JSON.stringify(want);
+    if (!ok) fails++;
+    out.push((ok ? "PASS " : "FAIL ") + name + (ok ? "" : "\n   got  " + JSON.stringify(got) + "\n   want " + JSON.stringify(want)));
+  }
+  function body(items) { return { response: { header: { resultCode: "00" }, body: { items: items === null ? "" : { item: items } } } }; }
+  function bus(no, nm, ord) { return { vehicleno: no, nodenm: nm, nodeord: ord }; }
+  var D = window.LIVE_CONFIG.directions;
+  // 14:56 에 실제로 받은 위치 (TAGO 도착 조회의 arrprevstationcnt 는 3011->2, 3014->6 이었다)
+  var resp = { results: {
+    "22:DGB4090003011": { ok: true, body: body(bus("대구70자2673", "태백주유소(칠곡군)1", 1045)) },
+    "22:DGB4090003014": { ok: true, body: body(bus("대구70자2618", "대구예술대학교", 1101)) },
+    "22:DGB4090003001": { ok: true, body: body(null) }
+  } };
+  var byRoute = parseLocResponse(resp);
+
+  var h = buildTracking(D.hakmyeong, byRoute);
+  eq("학명리방향: 3011 이 동명면우체국까지 2정류장 전 (TAGO arrprevstationcnt=2 와 일치)",
+     h.buses.filter(function (b) { return b.routeno === "칠곡3"; }).map(function (b) { return [b.stops_away, b.stop_name]; }),
+     [[2, "동명면우체국"]]);
+  var d = buildTracking(D.dongmyeong, byRoute);
+  eq("동명방향: 3014 가 학명리 건너2까지 6정류장 전 (TAGO arrprevstationcnt=6 과 일치)",
+     d.buses.filter(function (b) { return b.routeno === "칠곡3"; }).map(function (b) { return [b.stops_away, b.stop_name]; }),
+     [[6, "학명리 건너2"]]);
+  eq("3014 는 학명리방향에도 잡히지 않는다 (1101 은 이미 동명 정류장을 지나 학명리 쪽에 있음)",
+     h.buses.filter(function (b) { return b.vehicleno === "대구70자2618"; }).map(function (b) { return b.stops_away; }), []);
+
+  // 종점 제외: 3011 의 종점(1107, 동명교통)은 승차 정류장이 아니다
+  var past = parseLocResponse({ results: { "22:DGB4090003011": { ok: true, body: body(bus("X", "학명리", 1056)) } } });
+  eq("학명리로 가는 중인 버스를 종점 동명교통까지 N정류장 전으로 잡지 않는다",
+     (buildTracking(D.hakmyeong, past) || { buses: [] }).buses.length, 0);
+
+  // 정류장에 있음(0)
+  var at = parseLocResponse({ results: { "22:DGB4090003011": { ok: true, body: body(bus("Y", "동명면행정복지센터", 1048)) } } });
+  var ab = buildTracking(D.hakmyeong, at).buses;
+  eq("버스 위치 == 승차 정류장이면 0정류장 / 표기", [ab[0].stops_away, formatAway(ab[0].stops_away), formatAway(3)], [0, "정류장에 있음", "3정류장 전"]);
+
+  // 전부 실패면 null (호출자가 /all 로 대체)
+  eq("전 노선 실패면 null", buildTracking(D.hakmyeong, parseLocResponse({ results: { "22:DGB4090003011": { ok: false } } })), null);
+  // 에러 봉투는 "없음"과 다르다
+  var threw = false; try { parseBusLocations({ response: { header: { resultCode: "99" } } }); } catch (e) { threw = true; }
+  eq("TAGO 에러 응답은 throw (버스 없음과 구분)", threw, true);
+  eq("items 가 빈 문자열이면 버스 없음", parseBusLocations(body(null)), []);
+  eq("items 가 객체 하나(배열 아님)여도 1대", parseBusLocations(body(bus("Z", "a", 5))).length, 1);
+
+  // 렌더
+  var html = renderCard("hakmyeong", h);
+  eq("카드에 위치와 정류장 이름이 나온다", [html.indexOf("태백주유소") >= 0, html.indexOf("2정류장 전") >= 0, html.indexOf("동명면우체국에서 타기") >= 0, html.indexOf("TAGO") >= 0], [true, true, true, true]);
+  eq("버스 없을 때 문구", renderCard("hakmyeong", { buses: [], errors: 0 }).indexOf("지금 운행 중인 버스 없음") >= 0, true);
+  eq("XSS: 정류장 이름은 이스케이프", renderCard("hakmyeong", { buses: [{ routeno: "1", nodenm: "<img src=x>", stops_away: 1, stop_name: "a" }], errors: 0 }).indexOf("<img") < 0, true);
+
+  // ---- 시간표 표: 버스 번호 | 평균 | 최소~최대 ----
+  var tbl = renderSlots([{ routeno: "칠곡3", slot_index: 1, avg_time: "10:20", min_time: "10:10", max_time: "10:30", sample_count: 3 },
+                         { routeno: "885", slot_index: 1, avg_time: "11:05", min_time: "11:00", max_time: "11:12", sample_count: 5 }]);
+  eq("표 헤더가 버스/평균/최소~최대", [tbl.indexOf("<th>버스</th><th>평균</th><th>최소~최대</th>") >= 0, tbl.indexOf("<table") === 0], [true, true]);
+  eq("행: 번호, 평균, 최소~최대가 10:10~10:30 형식", [tbl.indexOf("<td>칠곡3번</td><td>10:20</td><td>10:10~10:30") >= 0, tbl.indexOf("<td>885번</td><td>11:05</td><td>11:00~11:12") >= 0], [true, true]);
+  eq("표기록 일수는 작게 같이 나온다", tbl.indexOf("3일 기록") >= 0, true);
+  eq("번호 없는 예전 stats 도 깨지지 않는다", renderSlots([{ avg_time: "11:23", min_time: "11:23", max_time: "11:23", sample_count: 1 }]).indexOf("<td>-</td>") >= 0, true);
+  eq("기록 없으면 안내 문구", renderSlots([]).indexOf("기록이 모이는 중") >= 0, true);
+  eq("XSS: 번호 이스케이프", renderSlots([{ routeno: "<b>", avg_time: "1", min_time: "1", max_time: "1", sample_count: 1 }]).indexOf("<b>") < 0, true);
+
+  // ---- 시간표는 동명행/학명리행을 구분해서, 펼쳐도 방향 이름이 보인다 ----
+  var stats = { dongmyeong: [{ routeno: "885", slot_index: 1, avg_time: "08:00", min_time: "07:55", max_time: "08:10", sample_count: 4 }],
+                hakmyeong: [{ routeno: "칠곡3", slot_index: 1, avg_time: "10:20", min_time: "10:10", max_time: "10:30", sample_count: 3 }] };
+  var fd = renderTimeBox("dongmyeong", stats), fh = renderTimeBox("hakmyeong", stats);
+  eq("동명행 박스: 제목 '동명행' + 동명 노선만, 접는 버튼 없음", [fd.indexOf("<h2>동명행</h2>") >= 0, fd.indexOf("<button") < 0, fd.indexOf("885번") >= 0, fd.indexOf("칠곡3") < 0], [true, true, true, true]);
+  eq("학명리행 박스: 제목 '학명리행' + 학명리 노선만", [fh.indexOf("<h2>학명리행</h2>") >= 0, fh.indexOf("칠곡3번") >= 0, fh.indexOf("885") < 0], [true, true, true]);
+  eq("기록이 아직 없으면 박스는 남고 안내 문구", renderTimeBox("hakmyeong", null).indexOf("기록이 모이는 중") >= 0, true);
+
+  // ---- ETA 합치기 (2026-10-22): TAGO 가 시간을 주는 버스는 시간을 그대로, 없는 버스는 위치만 ----
+  function arrBody(list) { return { response: { header: { resultCode: "00" }, body: { items: list.length ? { item: list.map(function (a) { return { routeid: a[0], routeno: a[1], arrtime: String(Math.round(a[2] * 60)), arrprevstationcnt: a[3] }; }) } : "" } } }; }
+  eq("parseArrivals 가 arrprevstationcnt 를 stops 로 돌려준다", parseArrivals(arrBody([["DGB4090003011", "칠곡3", 3.8, 2]]))[0].stops, 2);
+
+  // 학명리방향: 3011 이 동명면우체국(2정류장)·센터(3)·동명교통(4) 세 정류장 모두에 ETA 로 잡힌 실제 모양
+  var locH = parseLocResponse({ results: { "22:DGB4090003011": { ok: true, body: body(bus("대구70자2673", "태백주유소(칠곡군)1", 1045)) } } });
+  var arrH = parseAllResponse({ results: {
+    "22:DGB3690003750": { ok: true, body: arrBody([["DGB4090003011", "칠곡3", 3.8, 2], ["DGB3000527000", "527", 16.3, 15]]) },
+    "22:DGB7181001000": { ok: true, body: arrBody([["DGB4090003011", "칠곡3", 4.0, 3]]) },
+    "22:DGB7181007000": { ok: true, body: arrBody([["DGB4090003011", "칠곡3", 4.4, 4]]) } } });
+  var th = buildTracking(D.hakmyeong, locH, arrH);
+  var r3 = th.buses.filter(function (b) { return b.routeno === "칠곡3"; });
+  eq("위치+ETA: 가장 가까운 승차 정류장(우체국)의 ETA 3.8분을 붙인다", r3.map(function (b) { return [b.stops_away, b.eta_min, b.stop_name]; }), [[2, 3.8, "동명면우체국"]]);
+  eq("같은 버스의 뒤쪽 정류장 ETA(4.0/4.4분)는 별도 행으로 새지 않는다", r3.length, 1);
+  eq("위치 목록에 없는 버스도 TAGO 가 시간을 주면 ETA 행으로 남긴다 (527번 16.3분)",
+     th.buses.filter(function (b) { return b.routeno === "527"; }).length, 0); // 527 은 허용 노선이 아니라 제외
+
+  // 동명방향: 885(구미) 는 멀어도 TAGO 가 41.7분을 준다 -> 시간이 나와야 한다. 3014 는 TAGO 시간 없음 -> 위치만
+  var locD = parseLocResponse({ results: {
+    "37050:GMB88510": { ok: true, body: body(bus("경북78바1", "구평2동", 34)) },
+    "22:DGB4090003014": { ok: true, body: body(bus("대구70자2618", "대구예술대학교", 1101)) } } });
+  var arrD = parseAllResponse({ results: { "37050:GMB2479": { ok: true, body: arrBody([["GMB88510", "885", 41.7, 23]]) } } });
+  var td = buildTracking(D.dongmyeong, locD, arrD).buses;
+  eq("885: 23정류장 전 + TAGO 시간 41.7분", td.filter(function (b) { return b.routeno === "885"; }).map(function (b) { return [b.stops_away, b.eta_min]; }), [[23, 41.7]]);
+  eq("칠곡3(3014): TAGO 시간이 없으면 eta null, 위치는 그대로 6정류장 전", td.filter(function (b) { return b.routeno === "칠곡3"; }).map(function (b) { return [b.stops_away, b.eta_min]; }), [[6, null]]);
+  eq("ETA 없이(/all 실패) 호출해도 위치만으로 동작", buildTracking(D.dongmyeong, locD, null).buses.length, 2);
+
+  // 렌더: 시간이 있으면 시간이 크게, 없으면 정류장 수가 크게. 위치 줄은 항상.
+  var hr = renderCard("dongmyeong", { buses: td, errors: 0 });
+  eq("885 은 '42분 뒤'(41.7 반올림)가 크게 + 23정류장 전 위치 줄", [hr.indexOf("42분 뒤") >= 0, hr.indexOf("23정류장 전") >= 0, hr.indexOf("구평2동") >= 0], [true, true, true]);
+  eq("칠곡3 은 시간 대신 '6정류장 전'이 크게", hr.indexOf("6정류장 전") >= 0, true);
+
+  // ---- 885 는 구미에서 와서 2대가 동시에 오기도 한다 / 건너2 는 전 노선 / 위치 버스와 도착 버스가 다를 때 시간을 버리지 않는다 ----
+  var locTwo = parseLocResponse({ results: { "37050:GMB88510": { ok: true, body: body([bus("경북78바1", "석우1리", 47), bus("경북78바2", "석우2리", 49)]) } } });
+  var arrTwo = parseAllResponse({ results: { "37050:GMB2479": { ok: true, body: arrBody([["GMB88510", "885", 25, 10], ["GMB88510", "885", 20, 8]]) } } });
+  var two = buildTracking(D.dongmyeong, locTwo, arrTwo).buses.filter(function (b) { return b.routeno === "885"; });
+  eq("885 두 대가 동시에: 각각 자기 시간(20분/8정류장, 25분/10정류장)을 가진 두 행", two.map(function (b) { return [b.stops_away, b.eta_min]; }), [[8, 20], [10, 25]]);
+
+  // 위치로는 8정류장 전 버스, TAGO 도착정보는 14정류장 전 버스 시간(27분)을 줬다: 서로 다른 버스 -> 둘 다 보여준다
+  var locMis = parseLocResponse({ results: { "37050:GMB88510": { ok: true, body: body(bus("경북78바1", "석우1리", 49)) } } });
+  var arrMis = parseAllResponse({ results: { "37050:GMB2479": { ok: true, body: arrBody([["GMB88510", "885", 27, 14]]) } } });
+  var mis = buildTracking(D.dongmyeong, locMis, arrMis).buses.filter(function (b) { return b.routeno === "885"; });
+  eq("위치 버스(8정류장, 시간 없음)와 별개로 TAGO 가 준 14정류장 27분도 숨기지 않고 보여준다", mis.map(function (b) { return [b.stops_away, b.eta_min]; }), [[8, null], [14, 27]]);
+
+  // 같은 정류장에 같은 노선 도착 항목이 둘이면(위치 정보 없음) 시간이 비슷해도 합치지 않는다
+  var arrSame = parseAllResponse({ results: { "37050:GMB2479": { ok: true, body: arrBody([["GMB885-111", "885-1", 20, 8], ["GMB885-111", "885-1", 21, 9]]) } } });
+  var same = buildTracking(D.dongmyeong, parseLocResponse({ results: { "37050:GMB88510": { ok: true, body: body(null) } } }), arrSame).buses;
+  eq("위치 추적이 안 되는 노선(885-1)은 도착정보 그대로, 같은 정류장 두 건(20분, 21분)은 각각 한 대", same.map(function (b) { return b.eta_min; }), [20, 21]);
+  var arrStale = parseAllResponse({ results: { "37050:GMB2479": { ok: true, body: arrBody([["GMB88510", "885", 3.3, 1]]) } } });
+  eq("위치에 버스가 없어도 TAGO 가 준 3.3분은 보여준다(받은 시간은 버리지 않는다. 낡은 값이면 시간이 다 지난 뒤 화면이 숨긴다)",
+     buildTracking(D.dongmyeong, parseLocResponse({ results: { "37050:GMB88510": { ok: true, body: body(null) } } }), arrStale).buses.map(function (b) { return [b.stops_away, b.eta_min]; }), [[1, 3.3]]);
+  eq("위치를 못 받은 노선(실패)이면 검증할 수 없으니 도착정보를 그대로 보여준다",
+     buildTracking(D.dongmyeong, parseLocResponse({ results: { "37050:GMB88510": { ok: false }, "22:DGB4090003011": { ok: true, body: body(null) } } }), arrStale).buses.map(function (b) { return b.eta_min; }), [3.3]);
+
+  // 건너2(동명방향)는 노선 필터 없음 - 527 도 나온다. 동명 정류소(학명리방향)는 계속 허용 목록으로만
+  var arr527 = parseAllResponse({ results: { "37390:CGB2479": { ok: true, body: arrBody([["CGB52710", "527", 9, 5]]) },
+                                              "22:DGB3690003750": { ok: true, body: arrBody([["DGB3000527000", "527", 3, 2]]) } } });
+  var locNone = parseLocResponse({ results: { "37390:CGB30010": { ok: true, body: body(null) }, "22:DGB4090003011": { ok: true, body: body(null) } } });
+  eq("동명방향: 허용 목록에 없는 527 도 시간과 함께 나온다", buildTracking(D.dongmyeong, locNone, arr527).buses.map(function (b) { return [b.routeno, b.eta_min]; }), [["527", 9]]);
+  eq("학명리방향: 527 은 계속 제외", buildTracking(D.hakmyeong, locNone, arr527).buses.length, 0);
+
+  // ---- 위치와 도착정보가 1정류장 어긋나도(받은 시각 차이) 같은 버스로 합친다 ----
+  var locLag = parseLocResponse({ results: { "22:DGB4090003011": { ok: true, body: body(bus("대구70자2673", "태백주유소(칠곡군)1", 1045)) } } });
+  var arrLag = parseAllResponse({ results: { "22:DGB3690003750": { ok: true, body: arrBody([["DGB4090003011", "칠곡3", 8, 3]]) } } });
+  eq("위치 2정류장 / 도착 3정류장 8분 -> 한 대로 합쳐 8분 + 위치", buildTracking(D.hakmyeong, locLag, arrLag).buses.map(function (b) { return [b.stops_away, b.eta_min]; }), [[2, 8]]);
+  var arrFar = parseAllResponse({ results: { "22:DGB3690003750": { ok: true, body: arrBody([["DGB4090003011", "칠곡3", 19, 5]]) } } });
+  eq("위치 2정류장 / 도착 5정류장은 같은 버스로 보지 않는다 -> 위치 버스(시간 없음) + TAGO 19분 버스 두 줄", buildTracking(D.hakmyeong, locLag, arrFar).buses.map(function (b) { return [b.stops_away, b.eta_min]; }), [[2, null], [5, 19]]);
+
+  // ---- 885 왕복: 구미에서 동명(종점)에 다가오는 버스는 학명리방향 화면에 "곧 도착"으로 ----
+  var locArr = parseLocResponse({ results: { "37050:GMB88510": { ok: true, body: body([bus("경북78바5572", "동명초등학교건너", 62), bus("경북78바5570", "수도가압장건너편", 20), bus("경북78바5571", "동명면우체국건너", 63)]) },
+                                              "22:DGB4090003011": { ok: true, body: body(null) } } });
+  var ar = buildTracking(D.hakmyeong, locArr, null).buses.filter(function (b) { return b.arriving; });
+  eq("885 종점(63) 1정류장 전·도착은 보이고, 43정류장 전은 숨긴다", ar.map(function (b) { return [b.routeno, b.stops_away]; }), [["885", 0], ["885", 1]]);
+  var arHtml = renderCard("hakmyeong", { buses: ar, errors: 0 });
+  eq("카드: '동명 1정류장 전' + '구미에서 오는 버스' + '학명리 방향'", [arHtml.indexOf("동명 1정류장 전") >= 0, arHtml.indexOf("동명 도착") >= 0, arHtml.indexOf("구미에서 오는 버스") >= 0, arHtml.indexOf("학명리 방향") >= 0], [true, true, true, true]);
+  eq("동명방향 화면에는 종점 도착 예정 줄이 없다", buildTracking(D.dongmyeong, locArr, null).buses.filter(function (b) { return b.arriving; }).length, 0);
+  eq("종점 도착 예정 버스는 시간을 만들지 않는다(eta null)", ar.every(function (b) { return b.eta_min === null; }), true);
+
+  // ---- 초 단위 카운트다운 (2026-10-23 사용자 요청: 처음 받은 시간부터 줄이고, 새 시간이 오면 갱신하고, 절대 사라지지 않게) ----
+  eq("카운트다운 표기(1시간 넘으면 시간 단위)", [countdownText(1000 + 192000, 1000), countdownText(1000 + 45000, 1000), countdownText(1000 + 63 * 60000 + 5000, 1000),
+      countdownText(1000 + 90 * 60000 + 12000, 1000), countdownText(1000, 1000), countdownText(500, 1000)],
+     ["3분 12초 뒤", "45초 뒤", "1시간 3분 05초 뒤", "1시간 30분 12초 뒤", "곧 도착", "곧 도착"]);
+  eq("분 단위 표기도 1시간 넘으면 시간 단위", [formatEta(5), formatEta(90), formatEta(120), formatEta(0.4)], ["5분 뒤", "1시간 30분 뒤", "2시간 뒤", "곧 도착"]);
+  var T = 1000000, memo = {};
+  var b1 = [{ routeid: "R", vehicleno: "V1", eta_min: 3.2 }, { routeid: "R", vehicleno: "V2", eta_min: null }];
+  applyCountdown(b1, memo, "hakmyeong", T, 0);
+  eq("받은 시간은 도착 시각(eta_end)이 되고, 시간 없는 버스는 시간이 없는 채", [b1[0].eta_end, b1[1].eta_end], [T + 192000, undefined]);
+  var b2 = [{ routeid: "R", vehicleno: "V1", eta_min: null }];
+  applyCountdown(b2, memo, "hakmyeong", T + 30000, 0);
+  eq("다음 갱신에 시간이 안 와도 처음 받은 시간에서 계속 줄인다", b2[0].eta_end, T + 192000);
+  var b2s = [{ routeid: "R", vehicleno: "V1", eta_min: 3.2 }];
+  applyCountdown(b2s, memo, "hakmyeong", T + 60000, 0);
+  eq("TAGO 가 똑같은 값을 또 내보내면(멈춘 값) 처음 받은 때부터 계속 줄인다(되감지 않는다)", b2s[0].eta_end, T + 192000);
+  var b2n = [{ routeid: "R", vehicleno: "V1", eta_min: 1.0 }];
+  applyCountdown(b2n, memo, "hakmyeong", T + 90000, 0);
+  eq("값이 달라져 오면 그 값으로 다시 시작한다", b2n[0].eta_end, T + 90000 + 60000);
+  var b2a = [{ routeid: "R", vehicleno: "V1", eta_min: 2 }];
+  applyCountdown(b2a, {}, "hakmyeong", T, 20000);
+  eq("중계 캐시가 20초 묵었으면 그만큼 먼저 흐른 것으로 친다", b2a[0].eta_end, T - 20000 + 120000);
+  var b3 = [{ routeid: "R", vehicleno: "V1", eta_min: null }];
+  applyCountdown(b3, memo, "hakmyeong", T + 90000 + 60000 + 5000, 0);
+  eq("시간이 0 을 지나도 곧 도착으로 남는다(시간이 사라지지 않는다)", [b3[0].eta_end, typeof memo["hakmyeong:R:V1"]], [T + 150000, "object"]);
+  var b3b = [{ routeid: "R", vehicleno: "V1", eta_min: null }];
+  applyCountdown(b3b, memo, "hakmyeong", T + 150000 + 600001, 0);
+  eq("10분 넘게 새 시간이 없으면 그때서야 놓는다(위치만)", [b3b[0].eta_end, memo["hakmyeong:R:V1"]], [undefined, undefined]);
+  var memo2 = {};
+  applyCountdown([{ routeid: "R", vehicleno: "V1", eta_min: 5 }, { routeid: "R", vehicleno: "V9", eta_min: 6 }], memo2, "dongmyeong", T, 0);
+  applyCountdown([{ routeid: "R", vehicleno: "V1", eta_min: 4 }], memo2, "hakmyeong", T, 0);
+  applyCountdown([{ routeid: "R", vehicleno: "V1", eta_min: null }], memo2, "dongmyeong", T + 30000, 0);
+  eq("한두 번 안 보인 차는 기억을 유지한다(위치 호출이 잠깐 빠져도 시간이 끊기지 않는다)", Object.keys(memo2).sort(), ["dongmyeong:R:V1", "dongmyeong:R:V9", "hakmyeong:R:V1"]);
+  applyCountdown([{ routeid: "R", vehicleno: "V1", eta_min: null }], memo2, "dongmyeong", T + 130000, 0);
+  eq("2분 넘게 안 보인 차는 기억에서 지운다(방향이 다르면 따로)", Object.keys(memo2).sort(), ["dongmyeong:R:V1", "hakmyeong:R:V1"]);
+  var memo3 = {};
+  applyCountdown([{ routeid: "R", vehicleno: "V1", stop_name: "A정류장", eta_min: 2 }], memo3, "hakmyeong", T, 0);
+  var b4 = [{ routeid: "R", vehicleno: "V1", stop_name: "B정류장", eta_min: null }];
+  applyCountdown(b4, memo3, "hakmyeong", T + 10000, 0);
+  eq("다음 정류장이 바뀌면(A를 지나 B로) A까지의 시간을 B 것으로 쓰지 않는다", b4[0].eta_end, undefined);
+  var memo4 = {};
+  applyCountdown([{ routeid: "R", vehicleno: null, eta_min: 5 }, { routeid: "R", vehicleno: null, eta_min: 9 }], memo4, "dongmyeong", T, 0);
+  var b5 = [{ routeid: "R", vehicleno: null, eta_min: 5 }, { routeid: "R", vehicleno: null, eta_min: 9 }];
+  applyCountdown(b5, memo4, "dongmyeong", T + 45000, 0);
+  eq("차량번호가 없는 줄(도착정보만)도 같은 값이면 처음부터 계속 줄인다", [b5[0].eta_end, b5[1].eta_end], [T + 300000, T + 540000]);
+
+  var memo5 = {}, an = function () { return [{ routeid: "R", vehicleno: null, eta_min: 3 }]; };
+  applyCountdown(an(), memo5, "dongmyeong", T, 0);
+  var s1 = an(); applyCountdown(s1, memo5, "dongmyeong", T + 100000, 0);
+  var s2 = an(); applyCountdown(s2, memo5, "dongmyeong", T + 180000 + 20000, 0);
+  var s3 = an(); applyCountdown(s3, memo5, "dongmyeong", T + 180000 + 30001, 0);
+  eq("TAGO 가 시간이 다 지난 뒤에도 같은 값을 반복하는 위치 없는 줄은 낡은 값으로 보고 숨긴다(30초 여유)", [!!s1[0].stale, !!s2[0].stale, !!s3[0].stale], [false, false, true]);
+  var memo6 = {};
+  applyCountdown([{ routeid: "R", vehicleno: null, eta_min: 5 }], memo6, "dongmyeong", T, 0);
+  var v1 = [{ routeid: "R", vehicleno: "V1", eta_min: 5 }];
+  applyCountdown(v1, memo6, "dongmyeong", T + 60000, 0);
+  eq("위치가 따라잡아 같은 시간이 차량번호 줄로 옮겨가도 되감기지 않는다", [v1[0].eta_end, !!v1[0].stale, Object.keys(memo6)], [T + 300000, false, ["dongmyeong:R:V1"]]);
+  var v2 = [{ routeid: "R", vehicleno: "V1", eta_min: 5 }];
+  applyCountdown(v2, memo6, "dongmyeong", T + 900000, 0);
+  eq("위치로 확인된 버스(차량번호 있음)는 시간이 지나도 숨기지 않는다", !!v2[0].stale, false);
+
+  // ---- 위치 호출이 일부 실패해도 직전 위치를 잠깐 이어 쓴다 ----
+  var last = {};
+  var m1 = mergeLastLoc({ "22:A": { ok: true, list: [{ vehicleno: "V1", nodenm: "x", nodeord: 5 }] }, "22:B": { ok: false } }, last, 1000, 240000);
+  eq("처음엔 실패한 노선은 실패 그대로, 성공한 노선은 기억", [m1.carried, m1.byRoute["22:B"].ok, m1.byRoute["22:A"].ok, Object.keys(last)], [0, false, true, ["22:A"]]);
+  var m2 = mergeLastLoc({ "22:A": { ok: false }, "22:B": { ok: false } }, last, 61000, 240000);
+  eq("1분 뒤 A 가 실패하면 직전 위치를 이어 쓴다(carried 표시)", [m2.carried, m2.byRoute["22:A"].ok, m2.byRoute["22:A"].carried, m2.byRoute["22:A"].list[0].vehicleno, m2.byRoute["22:B"].ok], [1, true, true, "V1", false]);
+  var m3 = mergeLastLoc({}, last, 1000 + 240001, 240000);
+  eq("4분 넘게 못 받으면 이어 쓰지 않는다", [m3.carried, m3.byRoute["22:A"]], [0, undefined]);
+  var m4 = mergeLastLoc({ "22:A": { ok: true, list: [] } }, last, 5000, 240000);
+  eq("다시 성공하면(버스가 없어도) 새 결과가 우선", [m4.byRoute["22:A"].list.length, m4.carried, last["22:A"].at], [0, 0, 5000]);
+
+  // ---- 위치를 아예 못 받았을 때: 도착정보만으로도 줄 단위 카운트다운 ----
+  var rows = liveRows([{ routeid: "R", routeno: "885", eta_min: 3, stops: 2 }, { routeid: "S", routeno: "300", eta_min: 20, stops: NaN }]);
+  eq("도착정보만 있을 때도 줄(bus)로 바꾼다(정류장 수 모르면 null)", rows, [
+    { routeno: "885", routeid: "R", vehicleno: null, nodenm: null, stops_away: 2, stop_name: "", eta_min: 3 },
+    { routeno: "300", routeid: "S", vehicleno: null, nodenm: null, stops_away: null, stop_name: "", eta_min: 20 }]);
+  var fb = renderCard("dongmyeong", { buses: rows, errors: 0, fallback: true });
+  eq("도착정보만 보여줄 땐 그렇다고 알려준다", fb.indexOf("도착 정보만") >= 0, true);
+  var cr = renderCard("dongmyeong", { buses: rows, errors: 0, carried: 2 });
+  eq("직전 위치를 이어 쓰는 중이면 알려준다", cr.indexOf("잠깐 전") >= 0, true);
+  var cd = renderCard("dongmyeong", { buses: [{ routeno: "885", routeid: "R", vehicleno: "V", nodenm: "x", stops_away: 5, stop_name: "건너2", eta_min: 3.2, eta_end: Date.now() + 192000 }], errors: 0 });
+  eq("도착 시각이 있으면 role=timer + data-end + '분 초' 표기(화면 낭독이 매초 읽지 않게)", [cd.indexOf('role="timer"') >= 0, cd.indexOf('data-end="') >= 0, /\d+분 \d\d초 뒤/.test(cd)], [true, true, true]);
+  var cm = renderCard("dongmyeong", { buses: [{ routeno: "885", routeid: "R", vehicleno: "V", nodenm: "x", stops_away: 5, stop_name: "건너2", eta_min: 3.2 }], errors: 0 });
+  eq("도착 시각이 없는 옛 형식은 분 단위 그대로", [cm.indexOf("3분 뒤") >= 0, cm.indexOf("data-end") < 0], [true, true]);
+
+  // ---- 노선 절반 넘게 실패한 결과는 "버스 없음"과 구별이 안 되니 믿지 않는다 / 못 받았을 땐 직전 실시간 결과를 유지 ----
+  var failAll = {}; D.dongmyeong.tracked.forEach(function (t) { failAll[t.city_code + ":" + t.routeid] = { ok: false }; });
+  var firstKey = Object.keys(failAll)[0], okAll = {};
+  Object.keys(failAll).forEach(function (k) { okAll[k] = { ok: true, body: body(null) }; });
+  var oneOk = JSON.parse(JSON.stringify(failAll)); oneOk[firstKey] = { ok: true, body: body(null) };
+  eq("추적 결과 신뢰 판단: 전부 실패(null)/한 노선만 성공은 못 쓰고, 전부 성공은 쓴다",
+     [trackingUsable(buildTracking(D.dongmyeong, parseLocResponse({ results: failAll }), null), D.dongmyeong),
+      trackingUsable(buildTracking(D.dongmyeong, parseLocResponse({ results: oneOk }), null), D.dongmyeong),
+      trackingUsable(buildTracking(D.dongmyeong, parseLocResponse({ results: okAll }), null), D.dongmyeong)], [false, false, true]);
+  var stale = renderCard("dongmyeong", { buses: [{ routeno: "885", routeid: "R", vehicleno: "V", nodenm: "x", stops_away: 5, stop_name: "건너2", eta_min: 3.2, eta_end: Date.now() + 90000 }], errors: 0, snapshotAt: "08:30:12" });
+  eq("직전 결과를 대신 보여줄 땐 몇 시 정보인지 알려주고 카운트다운은 그대로", [stale.indexOf("08:30:12") >= 0, stale.indexOf("data-end") >= 0], [true, true]);
+  // ---- 위 시간표: 터치로 펴기/접기 ----
+  var tFold = renderTimeBox("dongmyeong", stats, true), tOpen = renderTimeBox("dongmyeong", stats, false);
+  eq("시간표 박스: 접으면 표 없이 '눌러서 펼치기', 펴면 표, 터치 대상 표시(data-fold/aria-expanded)",
+     [tFold.indexOf("<table") >= 0, tFold.indexOf("눌러서 펼치기") >= 0, tOpen.indexOf("<table") >= 0, tFold.indexOf('data-fold="dongmyeong"') >= 0,
+      tFold.indexOf('aria-expanded="false"') >= 0, tOpen.indexOf('aria-expanded="true"') >= 0], [false, true, true, true, true, true]);
+  out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
+  document.getElementById("out").textContent = out.join("\n");
+})();
+</script>

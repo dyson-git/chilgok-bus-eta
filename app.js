@@ -23,7 +23,9 @@ function formatEta(etaMin) {
   if (!validEta(etaMin)) return "알 수 없음";
   var n = Number(etaMin);
   if (n < 1) return "곧 도착";
-  return Math.round(n) + "분 뒤";
+  var min = Math.round(n);
+  if (min >= 60) return Math.floor(min / 60) + "시간 " + (min % 60 ? (min % 60) + "분 " : "") + "뒤";
+  return min + "분 뒤";
 }
 
 // 도착 시각(ms)까지 남은 시간을 초 단위로. 0 이하면 "곧 도착".
@@ -31,27 +33,73 @@ function countdownText(endMs, nowMs) {
   var sec = Math.round((endMs - nowMs) / 1000);
   if (sec <= 0) return "곧 도착";
   if (sec < 60) return sec + "초 뒤";
+  if (sec >= 3600) return Math.floor(sec / 3600) + "시간 " + Math.floor((sec % 3600) / 60) + "분 " + pad2(sec % 60) + "초 뒤";
   return Math.floor(sec / 60) + "분 " + pad2(sec % 60) + "초 뒤";
 }
 
 // TAGO 가 알려준 남은 시간(eta_min)을 "도착 시각"(eta_end, ms)으로 바꿔서 화면이 초 단위로 줄여 보여줄 수 있게 한다.
-// memo 는 방향+노선+차량번호별 마지막 도착 시각. 다음 갱신에 TAGO 가 시간을 안 주거나 위치와 안 맞아 숨겨져도 같은 차는 마지막으로
-// 받은 도착 시각을 이어서 줄여 보여준다(시간이 갑자기 사라지지 않게). 그 시각이 지나면 끊고 위치만 보여준다(곧 도착이라고 하지 않는다).
+// 규칙(사용자 요청 2026-10-23): 버스마다 처음 받은 시간에서 카운트다운을 시작하고, 값이 달라져 오면 그 값으로 다시 시작한다.
+// 한 번 시작한 시간은 사라지지 않는다 - 갱신에 시간이 안 와도, 위치 호출이 잠깐 빠져도, 0 을 지나도("곧 도착") 그대로 둔다.
+// TAGO 는 버스가 멈추거나 지나간 뒤에도 같은 값을 반복해서 내보낸다. 값(초)이 이전과 똑같이 오면 새로 시작하지 않고 계속 줄인다.
+// memo[key] = {end, raw, seen}. key = 방향:노선:차량번호(차량번호가 없는 줄은 같은 노선 안의 순서)[:다음 승차 정류장].
+// 위치로 확인되지 않는 줄(차량번호 없음)은 같은 값이 시간이 다 지난 뒤(+30초)에도 반복되면 낡은 값이라 b.stale 로 표시한다.
 // ageMs: 중계가 이 정보를 받아 둔 지 얼마나 됐는지(캐시 나이). 그만큼 이미 흐른 시간으로 친다.
+var ETA_OVERDUE_HOLD_MS = 600000, ETA_ABSENT_GRACE_MS = 120000, ETA_STALE_AFTER_MS = 30000;
 function applyCountdown(buses, memo, dirKey, now, ageMs) {
-  var seen = {};
+  var rank = {};
   buses.forEach(function (b) {
-    var key = b.vehicleno ? dirKey + ":" + b.routeid + ":" + b.vehicleno : null;
-    if (key) seen[key] = true;
+    var rk = b.routeid + "|" + (b.stop_name || "");
+    var id = b.vehicleno || "~" + (rank[rk] = rank[rk] === undefined ? 0 : rank[rk] + 1);
+    var key = dirKey + ":" + b.routeid + ":" + id + (b.stop_name ? ":" + b.stop_name : "");
+    var m = memo[key];
     if (b.eta_min !== null && b.eta_min !== undefined && validEta(b.eta_min)) {
-      b.eta_end = now - ageMs + Math.round(Number(b.eta_min) * 60) * 1000;
-      if (key) memo[key] = b.eta_end;
-    } else if (key && memo[key] !== undefined) {
-      if (memo[key] > now) b.eta_end = memo[key]; else delete memo[key];
+      var raw = Math.round(Number(b.eta_min) * 60);
+      if (m && m.raw === raw) {
+        b.eta_end = m.end; m.seen = now;
+        if (!b.vehicleno && now - m.end > ETA_STALE_AFTER_MS) b.stale = true;
+      } else {
+        var inherited = null;
+        if (b.vehicleno) {  // 위치가 따라잡아 차량번호가 생긴 줄: 같은 시간으로 먼저 보이던 줄의 시작을 이어받는다(되감지 않는다)
+          var pre = dirKey + ":" + b.routeid + ":~";
+          Object.keys(memo).some(function (k) {
+            if (k.indexOf(pre) !== 0 || memo[k].raw !== raw) return false;
+            inherited = memo[k]; delete memo[k]; return true;
+          });
+        }
+        b.eta_end = inherited ? inherited.end : now - ageMs + raw * 1000;
+        memo[key] = { end: b.eta_end, raw: raw, seen: now };
+      }
+    } else if (m && now - m.end <= ETA_OVERDUE_HOLD_MS) {
+      b.eta_end = m.end; m.seen = now;
+    } else if (m) {
+      delete memo[key];
     }
   });
   Object.keys(memo).forEach(function (k) {
-    if (k.indexOf(dirKey + ":") === 0 && !seen[k]) delete memo[k];
+    if (k.indexOf(dirKey + ":") === 0 && now - memo[k].seen > ETA_ABSENT_GRACE_MS) delete memo[k];
+  });
+}
+
+// 위치 호출(/loc)이 일부 노선을 못 받아도(TAGO 요청 제한) 그 노선의 직전 위치를 maxAgeMs 동안 이어 쓴다.
+// 안 그러면 버스가 줄에서 사라졌다 나타나며 시간이 끊긴다. last 는 호출 사이에 유지되는 {노선키: {list, at}} (여기서 갱신한다).
+function mergeLastLoc(byRoute, last, now, maxAgeMs) {
+  var merged = {}, carried = 0;
+  Object.keys(byRoute).forEach(function (k) {
+    var e = byRoute[k];
+    if (e && e.ok) { merged[k] = e; last[k] = { list: e.list, at: now }; } else { merged[k] = e || { ok: false }; }
+  });
+  Object.keys(last).forEach(function (k) {
+    if (merged[k] && merged[k].ok) return;
+    if (now - last[k].at <= maxAgeMs) { merged[k] = { ok: true, list: last[k].list, carried: true }; carried++; }
+  });
+  return { byRoute: merged, carried: carried };
+}
+
+// 위치를 못 받았을 때: 도착정보(observations)만으로 같은 모양의 줄을 만든다(그래도 초 단위로 줄여 보여줄 수 있게).
+function liveRows(observations) {
+  return observations.map(function (o) {
+    return { routeno: o.routeno, routeid: o.routeid, vehicleno: null, nodenm: null,
+      stops_away: isFinite(o.stops) ? o.stops : null, stop_name: "", eta_min: o.eta_min };
   });
 }
 
@@ -167,12 +215,11 @@ function buildTracking(dirCfg, byRoute, byKey) {
     if (best) best.used = true;
     return best && best.a;
   }
-  var cands = [], validated = {};
+  var cands = [];
   tracked.forEach(function (t) {
     var e = byRoute[t.city_code + ":" + t.routeid];
     if (!e || !e.ok) return;
     okRoutes++;
-    validated[t.routeid] = true;
     var stops = t.boarding.filter(function (b) { return b.ord !== t.last_ord; });
     e.list.forEach(function (bus) {
       var next = null;
@@ -200,14 +247,14 @@ function buildTracking(dirCfg, byRoute, byKey) {
     out.push({ routeno: c.t.routeno, routeid: c.t.routeid, vehicleno: c.bus.vehicleno, nodenm: c.bus.nodenm, stops_away: c.away, stop_name: c.next.name, eta_min: c.eta });
   });
   if (!okRoutes) return null;
-  // 위치를 확인할 수 없는 노선의 도착 항목은 버리지 않는다(TAGO 가 시간을 줬다). 같은 정류장의 항목은 항상 별개 버스다
-  // (885 는 구미에서 와서 2대가 같이 오기도 한다). 이웃 정류장마다 나온 같은 버스만 접는다(다른 정류장, 1~3정류장 뒤, 0~2.5분 뒤).
+  // 위치와 짝이 안 맞은 도착 항목도 버리지 않는다(TAGO 가 시간을 줬다 - 위치 API 가 그 버스를 빼먹거나 두 정보가 어긋날 수 있다).
+  // 낡은 값(버스가 지나간 뒤에도 TAGO 가 같은 시간을 반복)은 화면이 시간이 다 지난 뒤에 숨긴다(applyCountdown 의 stale).
+  // 같은 정류장의 항목은 항상 별개 버스다(885 는 구미에서 와서 2대가 같이 오기도 한다). 이웃 정류장마다 나온 같은 버스만 접는다
+  // (다른 정류장, 1~3정류장 뒤, 0~2.5분 뒤).
   var left = [];
   Object.keys(pool).forEach(function (k) {
     pool[k].forEach(function (it) {
-      // 위치로 확인되는 노선(validated)에서 위치와 안 맞는 도착 항목은 이미 지나간 버스의 낡은 기록이라 버린다(TAGO 는 지나간 뒤에도
-      // 몇 분간 같은 시간을 계속 내보낸다). 위치를 못 받은 노선·위치 추적이 안 되는 노선(885-1)만 도착정보 그대로 보여준다.
-      if (!it.used && !validated[it.a.routeid] && validEta(it.a.eta_min) && isAllowed(it.a.routeid, it.a.routeno, dirCfg)) left.push({ key: k, a: it.a });
+      if (!it.used && validEta(it.a.eta_min) && isAllowed(it.a.routeid, it.a.routeno, dirCfg)) left.push({ key: k, a: it.a });
     });
   });
   function stopsOf(x) { return isFinite(x.a.stops) ? x.a.stops : 1e9; }
@@ -267,6 +314,8 @@ function renderTracking(dir, res) {
         (where ? '<div class="where">' + where + "</div>" : "");
     }).join("");
     html += '<p class="note">시간은 국토부(TAGO)가 알려준 값에서 초 단위로 줄여 보여줘요. 시간이 없는 버스는 지금 위치만 보여요</p>';
+    if (res.fallback) html += '<p class="note">버스 위치를 아직 못 받아서 도착 정보만 보여줘요</p>';
+    if (res.carried) html += '<p class="note">일부 버스 위치는 잠깐 전에 받은 정보예요</p>';
   } else if (res.errors === 0) {
     html += '<div class="none">지금 운행 중인 버스 없음</div>';
   }
@@ -330,10 +379,11 @@ function renderSlots(rows) {
     }).join("") + "</tbody></table>";
 }
 
-// 시간표는 방향별 박스로 항상 보여준다(동명행 / 학명리행).
-function renderTimeBox(dir, stats) {
+// 시간표는 방향별 박스로 항상 보여준다(동명행 / 학명리행). 박스를 터치하면 펴고 접는다(접으면 표를 숨긴다).
+function renderTimeBox(dir, stats, folded) {
   var rows = stats ? stats[dir] : null;
-  return '<section class="card"><h2>' + esc(TIME_TITLE[dir]) + "</h2>" + renderSlots(rows) + "</section>";
+  return '<section class="card" data-fold="' + dir + '" role="button" tabindex="0" aria-expanded="' + (folded ? "false" : "true") + '"><h2>' +
+    esc(TIME_TITLE[dir]) + "</h2>" + (folded ? '<p class="note">눌러서 펼치기</p>' : renderSlots(rows)) + "</section>";
 }
 
 // 기점·종점 기준 참고 시간표. 변환·보정 없이 원본 시각 그대로 표시한다.
@@ -360,13 +410,13 @@ function renderReference(tt) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { isAllowed: isAllowed, parseArrivals: parseArrivals, selectArrivals: selectArrivals, buildDirection: buildDirection, parseAllResponse: parseAllResponse, renderCard: renderCard, renderSlots: renderSlots, renderTimeBox: renderTimeBox, validEta: validEta, formatEta: formatEta, countdownText: countdownText, applyCountdown: applyCountdown, trackingUsable: trackingUsable, renderReference: renderReference, parseBusLocations: parseBusLocations, parseLocResponse: parseLocResponse, buildTracking: buildTracking, formatAway: formatAway };
+  module.exports = { isAllowed: isAllowed, parseArrivals: parseArrivals, selectArrivals: selectArrivals, buildDirection: buildDirection, parseAllResponse: parseAllResponse, renderCard: renderCard, renderSlots: renderSlots, renderTimeBox: renderTimeBox, validEta: validEta, formatEta: formatEta, countdownText: countdownText, applyCountdown: applyCountdown, trackingUsable: trackingUsable, mergeLastLoc: mergeLastLoc, liveRows: liveRows, renderReference: renderReference, parseBusLocations: parseBusLocations, parseLocResponse: parseLocResponse, buildTracking: buildTracking, formatAway: formatAway };
 }
 
 if (typeof document !== "undefined") {
   (function () {
     var state = { stats: null, latest: null, res: { dongmyeong: null, hakmyeong: null },
-      checkedAt: null, loading: false, refOpen: false, etaEnd: {}, good: {} };
+      checkedAt: null, loading: false, refOpen: false, etaEnd: {}, good: {}, lastLoc: {}, fold: readFold() };
     var MAX_INFLIGHT = 3, MAX_ATTEMPTS = 3;
     var elRefresh = document.getElementById("refresh");
     var elChecked = document.getElementById("checked");
@@ -381,7 +431,24 @@ if (typeof document !== "undefined") {
       elChecked.textContent = state.checkedAt ? (state.live ? "실시간 확인 " : "실시간 연결 안 됨 · ") + clockHMS(state.checkedAt) : "";
     }
     function drawTimes() {
-      elTimes.innerHTML = DIRS.map(function (d) { return renderTimeBox(d, state.stats); }).join("");
+      elTimes.innerHTML = DIRS.map(function (d) { return renderTimeBox(d, state.stats, state.fold[d]); }).join("");
+    }
+    // 펴기/접기 상태는 이 기기에만 기억한다(못 읽으면 펼친 채로 시작)
+    function readFold() {
+      try { return JSON.parse(localStorage.getItem("timesFold")) || {}; } catch (e) { return {}; }
+    }
+    function toggleFold(el) {
+      var box = el.closest ? el.closest("[data-fold]") : null;
+      if (!box) return;
+      var d = box.getAttribute("data-fold");
+      state.fold[d] = !state.fold[d];
+      try { localStorage.setItem("timesFold", JSON.stringify(state.fold)); } catch (e) { /* 기억 못 해도 동작은 한다 */ }
+      drawTimes();
+      var again = elTimes.querySelector('[data-fold="' + d + '"]');
+      if (again) again.focus();
+    }
+    function onKey(fn) {
+      return function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(e); } };
     }
 
     function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
@@ -471,13 +538,14 @@ if (typeof document !== "undefined") {
       return { observations: obs, errors: (e.errors && e.errors.length) || 0, snapshotAt: isNaN(t) ? "이전" : clockHM(t) };
     }
 
+    var LOC_CARRY_MS = 240000;  // 위치를 못 받은 노선은 직전 위치를 4분까지 이어 쓴다
     var seq = 0;
     function load(fresh) {
       var my = ++seq;
       state.loading = true;
       drawCards();
       var c = cfg();
-      var got = { loc: null, arr: null, arrAt: null };
+      var got = { loc: null, arr: null, arrAt: null, locDone: false };
       // 위치(/loc)와 도착정보(/all)는 먼저 오는 것부터 그린다(전부 기다리면 느리다). 이전에 받은 시간은 계속 줄고 있어서
       // 갱신하는 동안에도 사라지지 않는다. /loc 가 안 되면 도착정보만, 둘 다 안 되면 정류소별 /arrivals, 그래도 안 되면 저장된 기록.
       function paint(final) {
@@ -486,12 +554,24 @@ if (typeof document !== "undefined") {
         if (age < 0 || age > 90000) age = 0;  // 기기 시계가 어긋났거나 너무 오래된 값은 믿지 않는다
         DIRS.forEach(function (d) {
           var dc = c && c.directions[d];
-          var tracked = got.loc && dc ? buildTracking(dc, got.loc, got.arr) : null;
-          if (!trackingUsable(tracked, dc)) tracked = null;
+          // 위치는 받은 것 + (못 받은 노선은) 직전에 받은 위치를 잠깐 이어 쓴다
+          var tracked = null;
+          if (got.locDone && dc) {
+            var mg = mergeLastLoc(got.loc || {}, state.lastLoc, now, LOC_CARRY_MS);
+            if (Object.keys(mg.byRoute).some(function (k) { return mg.byRoute[k].ok; })) {
+              tracked = buildTracking(dc, mg.byRoute, got.arr);
+              if (!trackingUsable(tracked, dc)) tracked = null;
+              else tracked.carried = (dc.tracked || []).filter(function (t) { var e = mg.byRoute[t.city_code + ":" + t.routeid]; return e && e.carried; }).length;
+            }
+          }
           var live = got.arr && dc ? buildDirection(dc, got.arr) : null;
+          // 위치가 아직 안 왔는데 도착정보만 먼저 왔으면, 이미 보이는 화면을 도착정보만의 모양으로 바꾸지 않는다(위치가 오면 바로 그려진다)
+          if (!tracked && live && !final && !got.locDone && state.res[d]) return;
+          if (!tracked && live) { live.buses = liveRows(live.observations); live.fallback = got.locDone; }
           var r = tracked || live;
           if (r) {
             applyCountdown(r.buses || [], state.etaEnd, d, now, age);
+            if (r.buses) r.buses = r.buses.filter(function (b) { return !b.stale; });
             state.good[d] = { res: r, at: now };
           } else if (final) {
             // 이번에 못 받았으면 5분 안에 받아 둔 실시간 결과를 계속 보여준다(시간도 계속 줄어든다). 그보다 오래됐으면 저장된 기록.
@@ -506,7 +586,7 @@ if (typeof document !== "undefined") {
         state.live = !!(got.loc || got.arr);
         drawCards();
       }
-      var pLoc = c ? fetchLoc(c, fresh).then(function (m) { got.loc = m; if (m) paint(false); }) : Promise.resolve();
+      var pLoc = c ? fetchLoc(c, fresh).then(function (m) { got.loc = m; got.locDone = true; paint(false); }) : Promise.resolve();
       var pArr = c ? fetchAll(c, fresh, got).then(function (m) { got.arr = m; if (m) paint(false); }) : Promise.resolve();
       var pStats = getJson("data/stats.json").then(function (r) {
         if (my === seq && !r.failed) { state.stats = r.missing ? null : r.data; drawTimes(); }
@@ -524,6 +604,17 @@ if (typeof document !== "undefined") {
 
     // 버튼은 중계 캐시를 건너뛰고 지금 바로 다시 받는다. 자동 새로고침(30초)은 캐시를 써도 된다.
     elRefresh.addEventListener("click", function () { load(true); });
+    // 방향 카드를 터치해도 새로고침(확인 중이면 무시). 위 시간표 박스는 터치하면 펴고 접는다.
+    DIRS.forEach(function (d) {
+      var card = document.getElementById("card-" + d);
+      card.setAttribute("role", "button");
+      card.tabIndex = 0;
+      function tap() { if (!state.loading) load(true); }
+      card.addEventListener("click", tap);
+      card.addEventListener("keydown", onKey(tap));
+    });
+    elTimes.addEventListener("click", function (e) { toggleFold(e.target); });
+    elTimes.addEventListener("keydown", onKey(function (e) { toggleFold(e.target); }));
     document.getElementById("refbtn").addEventListener("click", function () {
       state.refOpen = !state.refOpen;
       document.getElementById("refbody").hidden = !state.refOpen;
