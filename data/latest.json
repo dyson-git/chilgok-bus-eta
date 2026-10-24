@@ -1,11 +1,17 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-10-24T12:35:06+09:00",
+    "polled_at": "2026-10-24T12:40:05+09:00",
     "observations": [],
-    "errors": []
+    "errors": [
+      {
+        "city_code": "37050",
+        "node_id": "GMB2141",
+        "error": "ReadTimeout: HTTPSConnectionPool(host='apis.data.go.kr', port=443): Read timed out. (read timeout=15)"
+      }
+    ]
   },
   "dongmyeong": {
-    "polled_at": "2026-10-24T12:35:06+09:00",
+    "polled_at": "2026-10-24T12:40:05+09:00",
     "observations": [
       {
         "routeid": "GMB88510",
