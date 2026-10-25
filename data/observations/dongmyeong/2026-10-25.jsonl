@@ -78,3 +78,10 @@
 {"polled_at": "2026-10-25T12:20:51+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-10-25T12:25:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 42.93333333333333, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
 {"polled_at": "2026-10-25T12:30:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 39.833333333333336, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T12:35:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 34.03333333333333, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T12:40:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 25.533333333333335, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T12:45:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 19.15, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T12:50:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 13.75, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T12:55:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 9.2, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T13:00:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-25T13:05:51+09:00", "observations": [], "errors": []}
