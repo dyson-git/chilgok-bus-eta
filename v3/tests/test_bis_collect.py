@@ -107,3 +107,9 @@ def test_combine_keeps_one_per_route_within_10_minutes():
     b = [resolve.Arrival(t(10, 9), "30010", "300"), resolve.Arrival(t(10, 30), "30010", "300")]
     got = update.combine(a, b)
     assert [(x.when, x.source) for x in got] == [(t(10, 2), "tago"), (t(10, 30), "bis")]
+
+
+def test_negative_after_offset_is_dropped_not_held_at_zero():
+    got = {"dgb:3690003070": bis.parse_daegu({"header": {"success": True}, "body": {"list": [
+        {"routeId": "4090003001", "routeNo": "칠곡3", "arrState": "3분", "bsGap": 7}]}})}
+    assert bis.snaps_from_poll(got, t(10, 0))["hakmyeong"].obs == {}

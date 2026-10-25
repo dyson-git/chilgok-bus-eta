@@ -120,7 +120,8 @@
         var off = board === gap ? st.offset_min : Math.round(st.offset_min * board.stops / gap.stops);
         r.stops -= board.stops;
         r.board = board.board;
-        r.minutes = r.minutes === null ? null : Math.max(0, r.minutes - off);
+        if (r.minutes !== null && r.minutes - off < 0) return;  // 받은 시간으로는 이미 동명을 지났다(0분으로 붙잡으면 계속 '곧 도착')
+        r.minutes = r.minutes === null ? null : r.minutes - off;
         r.estimated = true; r.offset_min = off; r.base = st.name;
       }
       put(r);

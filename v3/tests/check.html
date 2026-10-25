@@ -117,6 +117,8 @@ run("directionRows", function () {
      ["hakmyeong:3420", 0, 0, "동명교통", 9, true]]);
 
   var d = V.parseDaegu(DGB);
+  eq("빼고 나면 0분 아래(시간으로 보면 이미 동명 승차 정류장을 지난 차)는 '곧 도착'으로 붙잡지 않고 뺀다",
+    V.directionRows(CFG, "dgb:3690003070", [{ route_id: "dgb:4090003001", route_no: "칠곡3", stops: 7, minutes: 3, bus: true }]), []);
   eq("대구 학명리: 칠곡3 중 학명리 가는 변형만, -10분",
     pick(V.directionRows(CFG, "dgb:3690003070", d), ["key", "stops", "minutes", "board", "offset_min"]),
     [["hakmyeong:dgb:4090003014", 41, 50, "동명면행정복지센터", 10]]);

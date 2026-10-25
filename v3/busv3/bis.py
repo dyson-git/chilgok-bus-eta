@@ -98,7 +98,8 @@ def _row_minutes(st, r):
         if alt is None:
             return None
         off = round(st["offset"] * alt / gap["stops"])
-    return float(max(0, r["minutes"] - off))
+    left = r["minutes"] - off
+    return float(left) if left >= 0 else None   # 받은 시간으로는 이미 동명을 지난 차
 
 
 def snaps_from_poll(got, when):
