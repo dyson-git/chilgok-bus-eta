@@ -1,9 +1,9 @@
 #!/bin/bash
-# 브라우저(헤드리스 Edge) 검사 실행: bash tests/browser/run.sh [app_check|bis_check]   (기본: 둘 다)
+# 브라우저(헤드리스 Edge) 검사 실행: bash tests/browser/run.sh [app_check|bis_check|relay_check]   (기본: 셋 다)
 # 결과: "PASS: n  FAIL: m" (실패하면 FAIL 줄과 got/want 가 같이 나온다). Windows + Edge 전제, node 불필요.
 EDGE="/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
 HERE="$(cd "$(dirname "$0")" && pwd)"
-for name in ${1:-app_check bis_check}; do
+for name in ${1:-app_check bis_check relay_check}; do
   echo "== $name"
   timeout 60 "$EDGE" --headless=new --disable-gpu --allow-file-access-from-files --virtual-time-budget=4000 \
     --dump-dom "file:///$(cygpath -m "$HERE/$name.html")" 2>/dev/null | python -c "

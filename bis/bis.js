@@ -4,6 +4,9 @@
 // 칠곡3·급행9-3 만 대구 버스정보시스템(중계 /dgb?bs=<번호>)에서 같은 방식으로 받는다(칠곡 시스템에 실시간이 없다).
 // 규칙(사용자 지시): 시간을 받으면 거기서 초 단위로 줄이고, 못 받아도 (옛 시간 - 지난 시간)으로 계속 줄이고,
 // 새 값이 오면 그 값으로 갱신한다. N정류장 전은 항상 보인다.
+// 파일 전체를 함수로 감싼다: 기존 앱(index.html)이 시간이 없는 버스를 채우려고 이 파일을 같이 불러서(2026-10-24),
+// 전역 이름이 app.js 와 섞이면 안 된다. 밖으로는 window.BisLive 만 내보낸다.
+(function () {
 "use strict";
 
 var HOLD_AFTER_END_MS = 180000;  // 도착 시각이 지나도 새 정보가 없으면 이 시간까지 "곧 도착"으로 남긴다
@@ -105,18 +108,65 @@ function buildRows(cfg, stationIds, popups) {
   return order.map(function (id) { return best[id]; });
 }
 
+// 종점에서 바로 돌아 나오는 노선(885): cfg.turnaround[] = {direction, station, route_id, route_no, extra_stops, terminal}.
+// 반대 방향(동명행)으로 station(학명리 건너2)을 지나는 버스를 이 방향 카드에 "종점까지 몇 정류장"으로 보여준다.
+// 시간은 station 을 지나는 시간(받은 값) 그대로 두고 만들지 않는다. 정류장 수를 모르는 줄은 뺀다.
+function turnaroundRows(cfg, dir, popups) {
+  var out = [];
+  ((cfg && cfg.turnaround) || []).forEach(function (t) {
+    if (t.direction !== dir || !popups[t.station]) return;
+    var st = (cfg.stops && cfg.stops[t.station]) || {};
+    popups[t.station].forEach(function (r) {
+      if (r.route_id !== t.route_id || r.stops_away === null || r.stops_away === undefined) return;
+      out.push({ route_id: r.route_id, route_no: t.route_no || r.route_no, ends: r.ends, station_name: null,
+        stops_away: r.stops_away + t.extra_stops, minutes: r.minutes, turn: { terminal: t.terminal, pass: st.name || "" } });
+    });
+  });
+  return out;
+}
+
+// 한 방향 화면 줄(기억 적용 전): 그 방향 정류장들의 줄 + 반대 방향에서 돌아 나올 왕복 노선 줄. 기존 앱(app.js)도 쓴다.
+function directionRows(cfg, dir, popups) {
+  var sids = Object.keys(cfg.stops).filter(function (sid) { return cfg.stops[sid].direction === dir; });
+  return buildRows(cfg, sids, popups).concat(turnaroundRows(cfg, dir, popups));
+}
+
+// 정류장 하나 받기 -> 파싱한 줄들 | null(못 받음). 칠곡 정류장은 중계 /bis(HTML), 대구 정류장("dgb:<번호>")은 /dgb(JSON).
+// 대구는 지금 오는 버스가 없으면 빈 목록이 정상이다. 칠곡 시스템은 밤에 10초 넘게 걸리기도 해서 15초까지 기다린다.
+function fetchStop(relay, cfg, sid) {
+  var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 15000);
+  var daegu = cfg.stops[sid].source === "daegu";
+  var url = daegu ? relay + "/dgb?bs=" + encodeURIComponent(sid.slice(4)) : relay + "/bis?stop=" + encodeURIComponent(sid);
+  return fetch(url, { cache: "no-store", signal: ctl.signal })
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return daegu ? r.json() : r.text(); })
+    .then(function (t) {
+      if (daegu) { if (!t || !t.header || !t.header.success) throw new Error("대구 응답 오류"); return parseDaegu(t); }
+      var rows = parsePopup(t); if (!rows.length) throw new Error("빈 응답"); return rows;
+    })
+    .catch(function () { return null; })
+    .then(function (rows) { clearTimeout(timer); return rows; });
+}
+
 // 노선별 도착 시각을 기억해 두고 화면용 줄을 만든다. memo["방향:노선id"] = {end, raw, last, lastAt}.
 // - 새 값(분)이 오면 그 값으로 다시 시작, 같은 값이 또 오면 처음 받은 때부터 계속 줄인다(1분 단위 값이라 같은 값이 여러 번 온다).
 // - 이번에 못 받은 노선은 도착 시각 + 3분까지 이어서 보여준다(carried). 그 뒤엔 놓는다.
+// - 줄은 왔는데 분이 없으면(정류장 수만) 기억한 도착 시각을 그대로 쓴다(시간이 사라지지 않게).
 function applyAnchors(rows, memo, dirKey, now) {
   var out = [], seen = {};
   rows.forEach(function (r) {
     var key = dirKey + ":" + r.route_id;
     seen[key] = true;
     var info = { route_id: r.route_id, route_no: r.route_no, ends: r.ends, station_name: r.station_name, stops_away: r.stops_away,
-      estimated: !!r.estimated, offset_min: r.offset_min || null };
-    if (r.minutes === null) { out.push(Object.assign({ end: null, carried: false, lastAt: now }, info)); return; }
-    var raw = r.minutes * 60, m = memo[key];
+      estimated: !!r.estimated, offset_min: r.offset_min || null, turn: r.turn || null };
+    var m = memo[key];
+    if (r.minutes === null) {
+      // 버스는 보이는데 이번엔 분이 안 왔다(대구 시스템은 가까워지면 분 대신 다른 문구를 준다): 앞서 받은 도착 시각을 이어서 쓴다
+      var held = m && now - m.end <= HOLD_AFTER_END_MS;
+      if (held) { m.last = info; m.lastAt = now; }
+      out.push(Object.assign({ end: held ? m.end : null, carried: false, lastAt: now }, info));
+      return;
+    }
+    var raw = r.minutes * 60;
     var end = m && m.raw === raw ? m.end : now + raw * 1000;
     memo[key] = { end: end, raw: raw, last: info, lastAt: now };
     out.push(Object.assign({ end: end, carried: false, lastAt: now }, info));
@@ -157,6 +207,14 @@ function renderCard(dir, rows, status, now) {
   if (rows.length) {
     html += rows.map(function (b) {
       var hasEnd = typeof b.end === "number", hasAway = b.stops_away !== null && b.stops_away !== undefined;
+      if (b.turn) {
+        // 동명 종점으로 오는 885: 크게는 종점까지 정류장 수, 아래에 지나는 시간(받은 값, 1초마다 줄어든다)과 학명리 방향 출발 안내
+        var pass = hasEnd ? esc(b.turn.pass) + ' 지나는 시간 <span data-end="' + b.end + '">' + esc(countdownText(b.end, now)) + "</span>" : null;
+        var turnWhere = [pass, esc("구미에서 오는 버스"), esc("동명 종점에서 바로 학명리 방향으로 출발"),
+          b.carried ? esc(clockHM(b.lastAt) + " 기준") : null].filter(Boolean).join(" · ");
+        return '<div class="bus"><span>' + esc(b.route_no) + '번</span><span class="when">' +
+          esc(b.stops_away === 0 ? "동명 도착" : "동명 " + formatAway(b.stops_away)) + "</span></div>" + '<div class="where">' + turnWhere + "</div>";
+      }
       var big = hasEnd ? countdownText(b.end, now) : (hasAway ? formatAway(b.stops_away) : "");
       var attr = hasEnd ? ' role="timer" data-end="' + b.end + '"' : "";
       var where = [hasEnd && hasAway ? formatAway(b.stops_away) : null,
@@ -196,7 +254,8 @@ function renderTimeBox(dir, stats, folded) {
     esc(TIME_TITLE[dir]) + "</h2>" + (folded ? '<p class="note">눌러서 펼치기</p>' : renderSlots(rows)) + "</section>";
 }
 
-window.BisLive = { parsePopup: parsePopup, parseDaegu: parseDaegu, countdownText: countdownText, buildRows: buildRows, applyAnchors: applyAnchors, loadAnchorMemo: loadAnchorMemo,
+window.BisLive = { parsePopup: parsePopup, parseDaegu: parseDaegu, countdownText: countdownText, buildRows: buildRows, turnaroundRows: turnaroundRows,
+  directionRows: directionRows, fetchStop: fetchStop, applyAnchors: applyAnchors, loadAnchorMemo: loadAnchorMemo,
   renderCard: renderCard, renderTimeBox: renderTimeBox };
 
 // ---- 화면 연결 (bis/index.html 의 <body data-app="bis"> 에서만. 검사 페이지는 건너뛴다) ----
@@ -229,21 +288,6 @@ if (!window.BIS_NO_INIT && document.body && document.body.getAttribute("data-app
       elChecked.textContent = state.checkedAt ? (state.okStations ? "실시간 확인 " : "실시간 연결 안 됨 · ") + clockHMS(state.checkedAt) : "";
     }
 
-    // 칠곡 정류장은 /bis(HTML), 대구 정류장("dgb:<번호>")은 /dgb(JSON). 대구는 지금 오는 버스가 없으면 빈 목록이 정상이다.
-    function fetchStop(relay, sid) {
-      var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 12000);
-      var daegu = state.cfg.stops[sid].source === "daegu";
-      var url = daegu ? relay + "/dgb?bs=" + encodeURIComponent(sid.slice(4)) : relay + "/bis?stop=" + encodeURIComponent(sid);
-      return fetch(url, { cache: "no-store", signal: ctl.signal })
-        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return daegu ? r.json() : r.text(); })
-        .then(function (t) {
-          if (daegu) { if (!t || !t.header || !t.header.success) throw new Error("대구 응답 오류"); return parseDaegu(t); }
-          var rows = parsePopup(t); if (!rows.length) throw new Error("빈 응답"); return rows;
-        })
-        .catch(function () { return null; })
-        .then(function (rows) { clearTimeout(timer); return rows; });
-    }
-
     function loadStats() {
       return fetch("../data/stats.json?t=" + Date.now(), { cache: "no-store" })
         .then(function (r) { return r.ok ? r.json() : null; })
@@ -258,14 +302,14 @@ if (!window.BIS_NO_INIT && document.body && document.body.getAttribute("data-app
       state.loading = true; draw();
       loadStats();
       var ids = Object.keys(state.cfg.stops);
-      return Promise.all(ids.map(function (sid) { return fetchStop(relay, sid); })).then(function (lists) {
+      return Promise.all(ids.map(function (sid) { return fetchStop(relay, state.cfg, sid); })).then(function (lists) {
         if (my !== seq) return;
         var popups = {}, ok = 0;
         ids.forEach(function (sid, i) { if (lists[i]) { popups[sid] = lists[i]; ok++; } });
         var now = Date.now();
         DIRS.forEach(function (d) {
           var sids = ids.filter(function (sid) { return state.cfg.stops[sid].direction === d; });
-          state.rows[d] = applyAnchors(buildRows(state.cfg, sids, popups), state.memo, d, now);
+          state.rows[d] = applyAnchors(directionRows(state.cfg, d, popups), state.memo, d, now);
           state.status[d] = { failed: sids.filter(function (sid) { return !popups[sid]; }).length, total: sids.length };
         });
         try { localStorage.setItem("bisEtaMemo", JSON.stringify(state.memo)); } catch (e) { /* 저장 못 해도 동작은 한다 */ }
@@ -312,3 +356,4 @@ if (!window.BIS_NO_INIT && document.body && document.body.getAttribute("data-app
     draw();
   })();
 }
+})();

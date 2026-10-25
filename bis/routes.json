@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-24T13:55+09:00",
+ "generated": "2026-10-24T22:22+09:00",
  "stops": {
   "2479": {
    "direction": "dongmyeong",
@@ -357,5 +357,15 @@
    },
    "offset_min": 3
   }
- }
+ },
+ "turnaround": [
+  {
+   "direction": "hakmyeong",
+   "station": "2479",
+   "route_id": "88510",
+   "route_no": "885",
+   "extra_stops": 9,
+   "terminal": "동명면우체국건너"
+  }
+ ]
 }

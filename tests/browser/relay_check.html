@@ -1,0 +1,69 @@
+<!doctype html><meta charset="utf-8"><title>relay check</title>
+<body>
+<pre id="out">RUNNING</pre>
+<script>
+// worker/relay.js(ES 모듈)를 글자로 읽어 "export default" 를 전역 변수로 바꿔 불러온 뒤, 가짜 KV·가짜 TAGO 로 검사한다.
+window.onerror = function (m, s, l) { document.getElementById("out").textContent = "ERROR " + m + " @" + l; };
+(async function () {
+  var out = [], fails = 0;
+  function eq(name, got, want) {
+    var ok = JSON.stringify(got) === JSON.stringify(want);
+    if (!ok) fails++;
+    out.push((ok ? "PASS " : "FAIL ") + name + (ok ? "" : "\n   got  " + JSON.stringify(got) + "\n   want " + JSON.stringify(want)));
+  }
+  var src = await (await fetch("../../worker/relay.js")).text();
+  var el = document.createElement("script");
+  el.textContent = src.replace("export default {", "window.RELAY = {");
+  document.body.appendChild(el);
+  var R = window.RELAY;
+
+  eq("한국 시각: UTC 07:25 -> 16시 25분", kstClock(Date.parse("2026-10-24T07:25:30Z")), { hour: "2026-10-24T16", minute: "25", dayMin: 985 });
+  eq("TAGO 응답 해석(한 건이면 객체, 없으면 빈 문자열)", [
+    tagoItems({ response: { body: { items: { item: { routeid: "CGB30010", routeno: 300, arrtime: "2772", nodenm: "x" } } } } }),
+    tagoItems({ response: { body: { items: "" } } })],
+    [[{ routeid: "CGB30010", routeno: "300", arrtime: 2772 }], []]);
+
+  // 가짜 KV
+  function fakeKV() {
+    var store = {};
+    return { store: store,
+      put: async function (k, v, o) { store[k] = { v: v, o: o }; },
+      get: async function (k, t) { return store[k] ? (t === "json" ? JSON.parse(store[k].v) : store[k].v) : null; },
+      list: async function (o) { return { keys: Object.keys(store).filter(function (k) { return k.indexOf(o.prefix) === 0; }).sort().map(function (k) { return { name: k }; }) }; } };
+  }
+  var kv = fakeKV();
+  // 가짜 TAGO: 모든 정류소에 같은 응답, 한 곳만 오류 봉투
+  var realFetch = window.fetch, realNow = Date.now;
+  window.fetch = async function (u) {
+    var bad = String(u).indexOf("nodeId=GMB2479") >= 0;
+    return { json: async function () { return bad ? { OpenAPI_ServiceResponse: { cmmMsgHeader: { returnReasonCode: "04" } } } :
+      { response: { header: { resultCode: "00" }, body: { items: { item: [{ routeid: "CGB30010", routeno: "300", arrtime: 120 }] } } } }; } };
+  };
+  Date.now = function () { return Date.parse("2026-10-24T07:25:00Z"); };
+  await collectSnapshot({ OBS: kv, TAGO_SERVICE_KEY: "test" });
+  Date.now = function () { return Date.parse("2026-10-24T13:00:00Z"); };   // 22:00 KST - 수집 시간 안(끝 시각 포함)
+  await collectSnapshot({ OBS: kv, TAGO_SERVICE_KEY: "test" });
+  Date.now = function () { return Date.parse("2026-10-24T13:05:00Z"); };   // 22:05 KST - 수집 시간 밖
+  await collectSnapshot({ OBS: kv, TAGO_SERVICE_KEY: "test" });
+  window.fetch = realFetch; Date.now = realNow;
+  var keys = Object.keys(kv.store);
+  var snap = keys.length ? JSON.parse(kv.store[keys[0]].v) : {};
+  eq("수집 시간 안에서만 KV 에 한 키로 쓴다(7일 뒤 삭제)", [keys, keys.length ? kv.store[keys[0]].o : null], [["obs:2026-10-24T16:25", "obs:2026-10-24T22:00"], { expirationTtl: 604800 }]);
+  eq("쓴 내용: 받은 시각 + 정류소별 결과(성공은 필요한 값만, 실패는 오류 문구)",
+     [snap.fetched_at, snap.results && snap.results["37390:CGB2479"], snap.results && snap.results["37050:GMB2479"].ok, Object.keys(snap.results || {}).length],
+     ["2026-10-24T07:25:00.000Z", { ok: true, items: [{ routeid: "CGB30010", routeno: "300", arrtime: 120 }] }, false, 16]);
+
+  var res = await R.fetch(new Request("https://x/obs?hour=2026-10-24T16"), { OBS: kv }, { waitUntil: function () {} });
+  var body = await res.json();
+  eq("/obs?hour= 는 그 시간에 쌓인 것을 배열로 준다", [res.status, body.length, body[0].fetched_at], [200, 1, "2026-10-24T07:25:00.000Z"]);
+  var bad = await R.fetch(new Request("https://x/obs?hour=nope"), { OBS: kv }, {});
+  var nokv = await R.fetch(new Request("https://x/obs?hour=2026-10-24T16"), {}, {});
+  eq("시간 형식이 틀리면 400, KV 가 연결 안 됐으면 503", [bad.status, nokv.status], [400, 503]);
+  var ran = false;
+  await R.scheduled({}, { TAGO_SERVICE_KEY: "k" }, { waitUntil: function () { ran = true; } });
+  eq("KV 가 연결 안 됐으면 수집하지 않는다", ran, false);
+
+  out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
+  document.getElementById("out").textContent = out.join("\n");
+})().catch(function (e) { document.getElementById("out").textContent = "ERROR " + e; });
+</script>

@@ -44,6 +44,8 @@ function countdownText(endMs, nowMs) {
 // memo[key] = {end, raw, seen}. key = 방향:노선:차량번호(차량번호가 없는 줄은 같은 노선 안의 순서)[:다음 승차 정류장].
 // 위치로 확인되지 않는 줄(차량번호 없음)은 같은 값이 시간이 다 지난 뒤(+30초)에도 반복되면 낡은 값이라 b.stale 로 표시한다.
 // ageMs: 중계가 이 정보를 받아 둔 지 얼마나 됐는지(캐시 나이). 그만큼 이미 흐른 시간으로 친다.
+// 버스정보시스템에서 붙인 시간(eta_src "bis")은 그 캐시와 무관해서 나이를 빼지 않고, 낡은 값 표시(stale)도 하지 않는다
+// (분 단위 값이라 "곧 도착"이 여러 번 오는 게 정상이다).
 // 버스가 잠깐(위치 호출 실패 등) 안 보여도 받은 시각은 지우지 않는다 - 다시 나타나면 이어서 줄인다(사용자 규칙 2026-10-24).
 // 기억은 도착 시각 + 10분이 지나야 버린다. 화면은 이 기억을 기기에 저장해서 앱을 다시 열어도 쓴다(loadEtaMemo).
 var ETA_OVERDUE_HOLD_MS = 600000, ETA_STALE_AFTER_MS = 30000;
@@ -58,7 +60,7 @@ function applyCountdown(buses, memo, dirKey, now, ageMs) {
       var raw = Math.round(Number(b.eta_min) * 60);
       if (m && m.raw === raw) {
         b.eta_end = m.end; m.seen = now;
-        if (!b.vehicleno && now - m.end > ETA_STALE_AFTER_MS) b.stale = true;
+        if (!b.vehicleno && b.eta_src !== "bis" && now - m.end > ETA_STALE_AFTER_MS) b.stale = true;
       } else {
         var inherited = null;
         if (b.vehicleno) {  // 위치가 따라잡아 차량번호가 생긴 줄: 같은 시간으로 먼저 보이던 줄의 시작을 이어받는다(되감지 않는다)
@@ -68,7 +70,7 @@ function applyCountdown(buses, memo, dirKey, now, ageMs) {
             inherited = memo[k]; delete memo[k]; return true;
           });
         }
-        b.eta_end = inherited ? inherited.end : now - ageMs + raw * 1000;
+        b.eta_end = inherited ? inherited.end : now - (b.eta_src === "bis" ? 0 : ageMs) + raw * 1000;
         memo[key] = { end: b.eta_end, raw: raw, seen: now };
       }
     } else if (m && now - m.end <= ETA_OVERDUE_HOLD_MS) {
@@ -116,6 +118,19 @@ function mergeLastLoc(byRoute, last, now, maxAgeMs) {
   return { byRoute: merged, carried: carried };
 }
 
+// 기기에 저장해 둔 직전 위치(JSON 문자열) -> last. 앱을 다시 열자마자 위치 호출이 늦거나 실패해도 버스가 다 사라지지 않게.
+// 깨졌거나 없으면 빈 값, maxAgeMs 보다 오래된 노선은 버린다(mergeLastLoc 과 같은 기준).
+function loadLastLoc(text, now, maxAgeMs) {
+  var out = {}, j;
+  try { j = JSON.parse(text); } catch (e) { return out; }
+  if (!j || typeof j !== "object") return out;
+  Object.keys(j).forEach(function (k) {
+    var e = j[k];
+    if (e && Array.isArray(e.list) && typeof e.at === "number" && now - e.at <= maxAgeMs) out[k] = e;
+  });
+  return out;
+}
+
 // 위치를 못 받았을 때: 도착정보(observations)만으로 같은 모양의 줄을 만든다(그래도 초 단위로 줄여 보여줄 수 있게).
 function liveRows(observations) {
   return observations.map(function (o) {
@@ -124,9 +139,62 @@ function liveRows(observations) {
   });
 }
 
-// 노선의 절반 넘게 실패한 추적 결과는 "지금 운행 중인 버스 없음"과 구별할 수 없으니 믿지 않는다.
+// 위치를 한 노선이라도 받았으면 쓴다(전부 실패면 null). 도착정보로 받은 버스는 위치 결과 안에 그대로 들어 있고(buildTracking),
+// 못 받은 노선이 있으면 카드가 "없음" 대신 "다 받지 못했어요"라고 한다. 2026-10-24: 절반 넘게 실패하면 통째로 버리던 것을 바꿨다
+// (가까운 버스만 남아 "지금 운행 중인 버스 없음"으로 보였다 - "새로고침하니 버스 다 사라졌어").
 function trackingUsable(res, dirCfg) {
-  return !!res && res.errors * 2 <= ((dirCfg && dirCfg.tracked) || []).length;
+  return !!res && res.errors < ((dirCfg && dirCfg.tracked) || []).length;
+}
+
+// ---- 시간이 없는 버스에 버스정보시스템 시간 붙이기 (2026-10-24, 사용자: "시간 표시 안되는건 똑같아 제발 고쳐") ----
+// TAGO 는 버스가 가까워져야 시간을 준다. 칠곡군 버스정보시스템(칠곡3·급행9-3 은 대구 버스정보시스템)은 멀어도 준다.
+// bisRows = bis/bis.js directionRows 결과(같은 방향, 기억 적용 전 - 학명리행은 이미 학명리 정류소 시간 −10분). 받은 값만 붙인다:
+// - TAGO 시간이 없는 버스: 같은 노선 번호, 남은 정류장 수 차이 2 이내 중 가장 가까운 줄의 분(출처 표시).
+// - 885 왕복(arriving): 같은 노선의 왕복 줄 시간(학명리 건너2 지나는 시간). 두 시스템의 종점까지 정류장 수가 달라 8 까지 본다.
+// - 짝이 없는 줄: 같은 노선 TAGO 줄이 가까이(3정류장, 왕복은 8) 없으면 새 줄로 더한다(TAGO 가 그 노선을 안 주거나 위치를 못 받았을 때).
+// 붙인 뒤 가까운 버스부터 다시 정렬한다(왕복 줄은 맨 뒤).
+function bisNo(no) { return String(no).replace(/^급행/, ""); }
+function bisSource(r) { return String(r.station_id || "").indexOf("dgb:") === 0 ? "대구 버스정보시스템" : "칠곡군 버스정보시스템"; }
+function fillFromBis(buses, bisRows) {
+  var used = [];
+  function hasAway(x) { return x.stops_away !== null && x.stops_away !== undefined; }
+  function closest(b, ok, slack) {
+    var best = -1;
+    bisRows.forEach(function (r, i) {
+      if (used[i] || !ok(r) || bisNo(r.route_no) !== bisNo(b.routeno) || !hasAway(r)) return;
+      var d = Math.abs(r.stops_away - b.stops_away);
+      if (d <= slack && (best < 0 || d < Math.abs(bisRows[best].stops_away - b.stops_away))) best = i;
+    });
+    if (best >= 0) used[best] = true;
+    return best < 0 ? null : bisRows[best];
+  }
+  buses.forEach(function (b) {
+    if (validEta(b.eta_min) || !hasAway(b)) return;
+    var r = b.arriving ? closest(b, function (x) { return x.turn && x.minutes !== null; }, 8)
+                       : closest(b, function (x) { return !x.turn && x.minutes !== null; }, 2);
+    if (!r) return;
+    b.eta_min = r.minutes; b.eta_src = "bis"; b.bis_src = bisSource(r);
+    if (r.estimated) b.offset_min = r.offset_min;
+    if (r.turn) b.pass_name = r.turn.pass;
+  });
+  bisRows.forEach(function (r, i) {
+    if (used[i]) return;
+    var near = buses.some(function (b) {
+      return !b.arriving === !r.turn && bisNo(b.routeno) === bisNo(r.route_no) &&
+        (!hasAway(b) || !hasAway(r) || Math.abs(b.stops_away - r.stops_away) <= (r.turn ? 8 : 3));
+    });
+    if (near) return;
+    var row = { routeno: r.route_no, routeid: "bis:" + r.route_id, vehicleno: null, nodenm: null, stops_away: hasAway(r) ? r.stops_away : null,
+      stop_name: r.turn ? "" : (r.station_name || ""), eta_min: r.minutes, eta_src: "bis", bis_src: bisSource(r) };
+    if (r.estimated) row.offset_min = r.offset_min;
+    if (r.turn) { row.arriving = true; row.terminal = "동명"; row.pass_name = r.turn.pass; }
+    buses.push(row);
+  });
+  function byAway(x, y) { return (hasAway(x) ? x.stops_away : 1e9) - (hasAway(y) ? y.stops_away : 1e9); }
+  var normal = buses.filter(function (b) { return !b.arriving; }).sort(byAway), arr = buses.filter(function (b) { return b.arriving; }).sort(byAway);
+  buses.length = 0;
+  normal.concat(arr).forEach(function (b) { buses.push(b); });
+  return buses;
 }
 
 // collector/config.py is_allowed 의 정확한 JS 포트 (순수 함수). dirCfg = LIVE_CONFIG.directions[dir]
@@ -210,7 +278,7 @@ function parseLocResponse(resp) {
   return byRoute;
 }
 
-var MAX_SHOW = 8, MAX_STOPS_AWAY = 40, ARRIVING_MAX = 12;
+var MAX_SHOW = 8;
 
 // dirCfg.tracked = [{city_code, routeid, routeno, last_ord, boarding:[{node_id, name, ord}]}], byRoute = parseLocResponse 결과,
 // byKey = parseAllResponse 결과(TAGO 도착정보, 없으면 null).
@@ -264,8 +332,10 @@ function buildTracking(dirCfg, byRoute, byKey) {
     });
   });
   cands.forEach(function (c) {
-    // 멀고 시간도 없는 버스(차고지 대기 등)만 잡음으로 보고 숨긴다. 시간이 있으면 1시간 넘게 멀어도 보여준다.
-    if (c.away > MAX_STOPS_AWAY && c.eta === null) return;
+    // 시간이 없는 차 중 이것만 숨긴다(운행 중이면 멀어도 보여준다 - 2026-10-24 885 가 47정류장 전이라 숨겨졌었다):
+    // - 출발지(노선 첫 정류장)에 서 있는데 거기가 승차 정류장이 아닌 차(차고지 대기). 출발지가 곧 승차 정류장이면(885 동명면우체국) 보여준다.
+    // - 대구 노선의 반대 방향 차: 순번 천 단위가 방향이라(1012 가는 쪽 / 2031 오는 쪽) 둘을 빼면 엉터리 정류장 수가 나온다.
+    if (c.eta === null && ((c.bus.nodeord <= 1 && c.away > 0) || Math.floor(c.bus.nodeord / 1000) !== Math.floor(c.next.ord / 1000))) return;
     out.push({ routeno: c.t.routeno, routeid: c.t.routeid, vehicleno: c.bus.vehicleno, nodenm: c.bus.nodenm, stops_away: c.away, stop_name: c.next.name, eta_min: c.eta });
   });
   if (!okRoutes) return null;
@@ -295,14 +365,15 @@ function buildTracking(dirCfg, byRoute, byKey) {
   out.sort(function (x, y) {
     return (x.stops_away === null ? 1e9 : x.stops_away) - (y.stops_away === null ? 1e9 : y.stops_away);
   });
-  // 종점에서 되돌아가는 왕복 노선(885): 종점에 다가오는 버스는 곧 이 방향 버스가 된다. 시간은 만들지 않고 위치만 보여준다.
+  // 종점에서 되돌아가는 왕복 노선(885): 종점에 다가오는 버스는 곧 이 방향 버스가 된다(사용자 확인 - 멀어도 보여준다).
+  // 출발지(구미역)에 서 있는 차만 뺀다. 시간은 만들지 않고 위치만 보여준다.
   var arriving = [];
   (dirCfg.arriving || []).forEach(function (a) {
     var e = byRoute[a.city_code + ":" + a.routeid];
     if (!e || !e.ok) return;
     e.list.forEach(function (bus) {
       var away = a.last_ord - bus.nodeord;
-      if (away < 0 || away > ARRIVING_MAX) return;
+      if (away < 0 || bus.nodeord <= 1) return;
       arriving.push({ routeno: a.routeno, routeid: a.routeid, vehicleno: bus.vehicleno, nodenm: bus.nodenm, stops_away: away,
         stop_name: "", eta_min: null, arriving: true, terminal: a.terminal });
     });
@@ -320,9 +391,13 @@ function renderTracking(dir, res) {
     html += res.buses.map(function (b) {
       if (b.arriving) {
         var tn = b.terminal || "종점";
+        // 시간은 버스정보시스템이 준 "학명리 건너2 지나는 시간"만 보여준다(받은 값에서 줄인다). 종점 도착 시각은 만들지 않는다.
+        var pass = typeof b.eta_end === "number" && b.pass_name ?
+          esc(b.pass_name + " 지나는 시간 ") + '<span role="timer" data-end="' + b.eta_end + '">' + esc(countdownText(b.eta_end, Date.now())) + "</span>" : null;
         return '<div class="bus"><span>' + esc(b.routeno) + '번</span><span class="when">' +
           esc(b.stops_away === 0 ? tn + " 도착" : tn + " " + b.stops_away + "정류장 전") + "</span></div>" +
-          '<div class="where">' + ["구미에서 오는 버스", b.nodenm ? "지금 " + b.nodenm : null, "도착하면 학명리 방향으로 가요"].filter(Boolean).map(esc).join(" · ") + "</div>";
+          '<div class="where">' + [pass].concat(["구미에서 오는 버스", b.nodenm ? "지금 " + b.nodenm : null, "도착하면 학명리 방향으로 가요",
+            pass && b.bis_src ? b.bis_src + " 시간" : null].filter(Boolean).map(esc)).filter(Boolean).join(" · ") + "</div>";
       }
       var hasEnd = typeof b.eta_end === "number";
       var hasEta = hasEnd || (b.eta_min !== null && b.eta_min !== undefined && validEta(b.eta_min));
@@ -331,17 +406,21 @@ function renderTracking(dir, res) {
       // 매초 바뀌는 숫자라 role=timer(화면 낭독이 매초 읽지 않는다). data-end 는 1초마다 갱신하는 타이머가 쓴다.
       var whenAttr = hasEnd ? ' role="timer" data-end="' + b.eta_end + '"' : "";
       var where = [b.nodenm ? "지금 " + b.nodenm : null, hasEta && hasAway ? formatAway(b.stops_away) : null,
-        b.stop_name ? b.stop_name + "에서 타기" : null].filter(Boolean).map(esc).join(" · ");
+        b.stop_name ? b.stop_name + "에서 타기" : null,
+        hasEta && b.eta_src === "bis" ? b.bis_src + " 시간" + (b.offset_min ? "(학명리 정류소 시간 −" + b.offset_min + "분)" : "") : null].filter(Boolean).map(esc).join(" · ");
       return '<div class="bus"><span>' + esc(b.routeno) + '번</span><span class="when"' + whenAttr + ">" + esc(big) + "</span></div>" +
         (where ? '<div class="where">' + where + "</div>" : "");
     }).join("");
-    html += '<p class="note">시간은 국토부(TAGO)가 알려준 값에서 초 단위로 줄여 보여줘요. 시간이 없는 버스는 지금 위치만 보여요</p>';
+    html += '<p class="note">시간은 국토부(TAGO)·버스정보시스템이 알려준 값에서 초 단위로 줄여 보여줘요. 시간이 없는 버스는 지금 위치만 보여요</p>';
     if (res.fallback) html += '<p class="note">버스 위치를 아직 못 받아서 도착 정보만 보여줘요</p>';
     if (res.carried) html += '<p class="note">일부 버스 위치는 잠깐 전에 받은 정보예요</p>';
-  } else if (res.errors === 0) {
+  } else if (res.errors > 0 || res.fallback) {
+    // 못 받은 노선이 있거나 위치를 못 받았으면 버스가 없다고 하지 않는다
+    html += '<div class="warn">버스 정보를 다 받지 못했어요. 잠시 후 다시 확인해요</div>';
+  } else {
     html += '<div class="none">지금 운행 중인 버스 없음</div>';
   }
-  if (res.errors > 0) html += '<p class="note">일부 노선 정보가 늦어요</p>';
+  if (res.buses.length && res.errors > 0) html += '<p class="note">일부 노선 정보가 늦어요</p>';
   if (res.snapshotAt) html += '<p class="note">지금은 연결이 늦어 ' + esc(res.snapshotAt) + ' 정보를 보여드려요</p>';
   return html;
 }
@@ -432,14 +511,18 @@ function renderReference(tt) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { isAllowed: isAllowed, parseArrivals: parseArrivals, selectArrivals: selectArrivals, buildDirection: buildDirection, parseAllResponse: parseAllResponse, renderCard: renderCard, renderSlots: renderSlots, renderTimeBox: renderTimeBox, validEta: validEta, formatEta: formatEta, countdownText: countdownText, applyCountdown: applyCountdown, loadEtaMemo: loadEtaMemo, trackingUsable: trackingUsable, mergeLastLoc: mergeLastLoc, liveRows: liveRows, renderReference: renderReference, parseBusLocations: parseBusLocations, parseLocResponse: parseLocResponse, buildTracking: buildTracking, formatAway: formatAway };
+  module.exports = { isAllowed: isAllowed, parseArrivals: parseArrivals, selectArrivals: selectArrivals, buildDirection: buildDirection, parseAllResponse: parseAllResponse, renderCard: renderCard, renderSlots: renderSlots, renderTimeBox: renderTimeBox, validEta: validEta, formatEta: formatEta, countdownText: countdownText, applyCountdown: applyCountdown, loadEtaMemo: loadEtaMemo, trackingUsable: trackingUsable, mergeLastLoc: mergeLastLoc, loadLastLoc: loadLastLoc, fillFromBis: fillFromBis, liveRows: liveRows, renderReference: renderReference, parseBusLocations: parseBusLocations, parseLocResponse: parseLocResponse, buildTracking: buildTracking, formatAway: formatAway };
 }
 
 if (typeof document !== "undefined") {
   (function () {
+    var LOC_CARRY_MS = 240000;  // 위치를 못 받은 노선은 직전 위치를 4분까지 이어 쓴다
     var state = { stats: null, latest: null, res: { dongmyeong: null, hakmyeong: null },
-      checkedAt: null, loading: false, refOpen: false, etaEnd: readEtaMemo(), good: {}, lastLoc: {}, fold: readFold() };
+      checkedAt: null, loading: false, refOpen: false, etaEnd: readEtaMemo(), good: {}, lastLoc: readStored("lastLoc", function (t) { return loadLastLoc(t, Date.now(), LOC_CARRY_MS); }), fold: readFold(),
+      bisCfg: null };
     var MAX_INFLIGHT = 3, MAX_ATTEMPTS = 3;
+    // 버스정보시스템 정류장 설정(② 와 같은 bis/routes.json). 못 읽거나 bis.js 가 없으면 TAGO 만으로 동작한다.
+    var bisCfgReady = window.BisLive ? getJson("bis/routes.json").then(function (r) { if (r.data && r.data.stops) state.bisCfg = r.data; }) : Promise.resolve();
     var elRefresh = document.getElementById("refresh");
     var elChecked = document.getElementById("checked");
     var elTimes = document.getElementById("times");
@@ -463,8 +546,15 @@ if (typeof document !== "undefined") {
     function readEtaMemo() {
       try { return loadEtaMemo(localStorage.getItem("etaMemo"), Date.now()); } catch (e) { return {}; }
     }
+    function readStored(key, load) {
+      try { return load(localStorage.getItem(key)); } catch (e) { return {}; }
+    }
+    // 받은 시간 기억 + 직전 버스 위치를 저장한다(앱을 다시 열어도 이어 쓴다)
     function saveEtaMemo() {
-      try { localStorage.setItem("etaMemo", JSON.stringify(state.etaEnd)); } catch (e) { /* 저장 못 해도 동작은 한다 */ }
+      try {
+        localStorage.setItem("etaMemo", JSON.stringify(state.etaEnd));
+        localStorage.setItem("lastLoc", JSON.stringify(state.lastLoc));
+      } catch (e) { /* 저장 못 해도 동작은 한다 */ }
     }
     function toggleFold(el) {
       var box = el.closest ? el.closest("[data-fold]") : null;
@@ -567,14 +657,13 @@ if (typeof document !== "undefined") {
       return { observations: obs, errors: (e.errors && e.errors.length) || 0, snapshotAt: isNaN(t) ? "이전" : clockHM(t) };
     }
 
-    var LOC_CARRY_MS = 240000;  // 위치를 못 받은 노선은 직전 위치를 4분까지 이어 쓴다
     var seq = 0;
     function load(fresh) {
       var my = ++seq;
       state.loading = true;
       drawCards();
       var c = cfg();
-      var got = { loc: null, arr: null, arrAt: null, locDone: false };
+      var got = { loc: null, arr: null, arrAt: null, locDone: false, bis: null };
       // 위치(/loc)와 도착정보(/all)는 먼저 오는 것부터 그린다(전부 기다리면 느리다). 이전에 받은 시간은 계속 줄고 있어서
       // 갱신하는 동안에도 사라지지 않는다. /loc 가 안 되면 도착정보만, 둘 다 안 되면 정류소별 /arrivals, 그래도 안 되면 저장된 기록.
       function paint(final) {
@@ -583,9 +672,10 @@ if (typeof document !== "undefined") {
         if (age < 0 || age > 90000) age = 0;  // 기기 시계가 어긋났거나 너무 오래된 값은 믿지 않는다
         DIRS.forEach(function (d) {
           var dc = c && c.directions[d];
-          // 위치는 받은 것 + (못 받은 노선은) 직전에 받은 위치를 잠깐 이어 쓴다
+          // 위치는 받은 것 + (못 받은 노선은) 직전에 받은 위치를 잠깐 이어 쓴다. 앱을 막 열어 위치가 아직 안 왔어도
+          // 기기에 저장해 둔 직전 위치(4분 이내)가 있으면 그걸로 먼저 보여준다.
           var tracked = null;
-          if (got.locDone && dc) {
+          if (dc && (got.locDone || Object.keys(state.lastLoc).length)) {
             var mg = mergeLastLoc(got.loc || {}, state.lastLoc, now, LOC_CARRY_MS);
             if (Object.keys(mg.byRoute).some(function (k) { return mg.byRoute[k].ok; })) {
               tracked = buildTracking(dc, mg.byRoute, got.arr);
@@ -594,11 +684,17 @@ if (typeof document !== "undefined") {
             }
           }
           var live = got.arr && dc ? buildDirection(dc, got.arr) : null;
-          // 위치가 아직 안 왔는데 도착정보만 먼저 왔으면, 이미 보이는 화면을 도착정보만의 모양으로 바꾸지 않는다(위치가 오면 바로 그려진다)
-          if (!tracked && live && !final && !got.locDone && state.res[d]) return;
+          var bisRows = got.bis && state.bisCfg ? window.BisLive.directionRows(state.bisCfg, d, got.bis) : null;
+          // 위치가 아직 안 왔는데 도착정보만 먼저 왔으면: 이미 보이는 화면은 도착정보만의 모양으로 바꾸지 않고(위치가 오면 바로 그려진다),
+          // 처음 여는 중이면 보여줄 버스가 있을 때만 그린다 - 위치도 안 보고 "버스 없음"이라고 먼저 말하지 않는다
+          // (2026-10-24 "새로고침하니 버스 다 사라졌어 ... 다시 또 나타나긴 했는데").
+          if (!tracked && live && !final && !got.locDone && (state.res[d] || (!live.observations.length && !(bisRows && bisRows.length)))) return;
           if (!tracked && live) { live.buses = liveRows(live.observations); live.fallback = got.locDone; }
           var r = tracked || live;
+          // TAGO 를 하나도 못 받았어도 버스정보시스템 줄이 있으면 그걸로 보여준다(TAGO 를 못 받은 건 "늦어요"로 알린다)
+          if (!r && bisRows && bisRows.length) r = { buses: [], errors: got.locDone || final ? 1 : 0 };
           if (r) {
+            if (bisRows) fillFromBis(r.buses, bisRows);
             applyCountdown(r.buses || [], state.etaEnd, d, now, age);
             if (r.buses) r.buses = r.buses.filter(function (b) { return !b.stale; });
             state.good[d] = { res: r, at: now };
@@ -612,7 +708,7 @@ if (typeof document !== "undefined") {
           state.res[d] = r;
         });
         state.checkedAt = now;
-        state.live = !!(got.loc || got.arr);
+        state.live = !!(got.loc || got.arr || got.bis);
         saveEtaMemo();
         drawCards();
       }
@@ -622,6 +718,16 @@ if (typeof document !== "undefined") {
         if (my === seq && !r.failed) { state.stats = r.missing ? null : r.data; drawTimes(); }
       });
       var pLatest = getJson("data/latest.json").then(function (r) { if (!r.failed) state.latest = r.missing ? null : r.data; });
+      // 버스정보시스템(칠곡군, 칠곡3·급행9-3 은 대구): TAGO 가 시간을 안 주는 버스의 시간. 느려서(10초 안팎) 기다리지 않고 오는 대로 그린다.
+      if (c) bisCfgReady.then(function () {
+        if (my !== seq || !state.bisCfg) return;
+        var sids = Object.keys(state.bisCfg.stops);
+        return Promise.all(sids.map(function (sid) { return window.BisLive.fetchStop(c.relayUrl, state.bisCfg, sid); })).then(function (lists) {
+          var p = {}, n = 0;
+          sids.forEach(function (sid, i) { if (lists[i]) { p[sid] = lists[i]; n++; } });
+          if (n) { got.bis = p; paint(false); }
+        });
+      });
       return Promise.all([pLoc, pArr, pStats, pLatest]).then(function () {
         if (my !== seq) return;
         if (c && !got.loc && !got.arr) return fetchEach(c).then(function (m) { got.arr = m; });

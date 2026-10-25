@@ -72,6 +72,16 @@ def stops_between(stop_list, ref_ids, target_id):
     return None
 
 
+def stops_to_end(stop_list, stop_id):
+    """노선 정류장 목록에서 stop_id 정류장(마지막으로 지나는 곳)부터 노선 끝 정류장까지 정거장 수 -> (수, 끝 정류장 이름).
+    885 처럼 종점에서 바로 돌아 나오는 노선을 "종점까지 몇 정류장"으로 보여줄 때 쓴다. stop_id 가 노선에 없으면 None."""
+    at = [int(s["WAYPOINT_ORD"]) for s in stop_list if str(s["STOP_SERVICEID"]) == str(stop_id)]
+    if not at:
+        return None
+    last = max(stop_list, key=lambda s: int(s["WAYPOINT_ORD"]))
+    return int(last["WAYPOINT_ORD"]) - max(at), last.get("STOP_KNAME") or ""
+
+
 def boarding_options(stop_list, ref_ids, target_id):
     """target_id 정류장(처음 지나는 곳) 바로 앞 회차에서 지나는 동명 정류장(ref_ids) 전부 -> [(정거장 수, 이름)], 먼 것부터.
     버스가 기준 정류장을 이미 지났어도 더 가까운 동명 정류장 앞이면 거기서 탈 수 있어서 쓴다. target 이 노선에 없으면 []."""

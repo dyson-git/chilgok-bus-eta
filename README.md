@@ -14,7 +14,7 @@ https://dyson-git.github.io/chilgok-bus-eta/ (GitHub Pages, `main` 루트에서 
 ## 데이터 수집
 
 GitHub Actions(`.github/workflows/poll.yml`)가 5분마다 `python -m collector.poll`을
-실행한다. 수집은 06:00–21:30 KST에만 동작하고 그 외 시간에는 아무 것도 하지 않는다.
+실행한다. 수집은 06:00–22:00 KST에만 동작하고 그 외 시간에는 아무 것도 하지 않는다.
 결과는 `data/`에 저장되어 `main`에 자동 커밋된다. 저장소 시크릿 `TAGO_SERVICE_KEY`
 (TAGO 공공데이터 서비스키)가 필요하다.
 

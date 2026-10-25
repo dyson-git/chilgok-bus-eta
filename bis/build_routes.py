@@ -17,7 +17,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from bis.parse import boarding_options, parse_stop_popup, stops_between
+from bis.parse import boarding_options, parse_stop_popup, stops_between, stops_to_end
 
 BASE = "https://bus.chilgok.go.kr"
 HEADERS = {"User-Agent": "Mozilla/5.0", "X-Requested-With": "XMLHttpRequest", "Referer": BASE + "/map/BusMap.do",
@@ -39,6 +39,9 @@ DAEGU_STOPS = {
     "3690003090": ("hakmyeong", ["급행9-3"], 3),                # 학명리(등골마을입구): 동명면우체국에서 3정거장 -> 3분
 }
 DAEGU_REF_NAMES = ["동명면행정복지센터", "동명교통", "동명면우체국"]   # 정거장 수를 셀 동명 정류장, 앞쪽 우선
+# 종점(동명)에서 바로 돌아 학명리 방향으로 가는 노선(사용자 확인 2026-10-24: "동명방향으로 885 도착해가면 그게 곧 학명리 방향 버스야").
+# 동명행으로 station 을 지나는 그 노선 버스를 학명리행 카드에도 "동명 N정류장 전"으로 보여준다(시간은 station 도착 값 그대로).
+TURNAROUND = [{"direction": "hakmyeong", "station": "2479", "route_id": "88510"}]
 
 
 def gap_entry(stop_list, ref_ids, target_id):
@@ -127,8 +130,22 @@ def main():
                 entry.update({"route_ids": list(gaps), "gaps": gaps, "offset_min": OFFSET_MIN[sid]})
             out_stops[sid] = entry
     out_stops.update(daegu_stops())
+    turnaround = []
+    for t in TURNAROUND:
+        row = next((r for r in stops[t["station"]]["rows"] if r["route_id"] == t["route_id"]), None)
+        if row is None:
+            sys.exit("정류장 %s 에 노선 %s 가 없음" % (t["station"], t["route_id"]))
+        if row["api_id"] not in stop_lists:
+            stop_lists[row["api_id"]] = json.loads(post("/map/StopListByRoute.do", route_id=row["api_id"])).get("stopList") or []
+            time.sleep(0.25)
+        found = stops_to_end(stop_lists[row["api_id"]], stops[t["station"]]["service_id"])
+        if found is None:
+            sys.exit("노선 %s 정류장 목록에 %s 가 없음" % (t["route_id"], t["station"]))
+        turnaround.append(dict(t, route_no=row["route_no"], extra_stops=found[0], terminal=found[1]))
+        print("왕복 %s(%s): %s 지나서 %d정류장 뒤 종점 %s -> %s 카드에도" % (row["route_no"], t["route_id"], stops[t["station"]]["name"], found[0], found[1], t["direction"]))
     kst = timezone(timedelta(hours=9))
-    OUT.write_text(json.dumps({"generated": datetime.now(kst).isoformat(timespec="minutes"), "stops": out_stops}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    OUT.write_text(json.dumps({"generated": datetime.now(kst).isoformat(timespec="minutes"), "stops": out_stops, "turnaround": turnaround},
+                              ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     for sid, s in out_stops.items():
         if s["route_ids"] is None:
             names = "/".join(s["route_nos"]) + " 전부" if "route_nos" in s else "전부"

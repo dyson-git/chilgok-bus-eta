@@ -129,6 +129,32 @@
                                         "hakmyeong:dgb:2": { end: TT - 180001, raw: 60, last: {}, lastAt: TT - 240000 } }), TT),
       B.loadAnchorMemo("{깨짐", TT), B.loadAnchorMemo(null, TT)],
      [{ "hakmyeong:dgb:1": { end: TT + 60000, raw: 600, last: { route_no: "칠곡3" }, lastAt: TT - 540000 } }, {}, {}]);
+  // 2026-10-24 16:09 실제: 버스는 보이는데(3정류장 전) 이번엔 분이 안 왔다 -> 앞서 받은 시간을 이어서 줄인다
+  var nm = {}, row = function (min, away) { return [{ route_id: "dgb:4090003014", route_no: "칠곡3", ends: "", station_name: "학명리 건너2", stops_away: away, minutes: min }]; };
+  B.applyAnchors(row(5, 6), nm, "dongmyeong", TT);
+  var kept = B.applyAnchors(row(null, 3), nm, "dongmyeong", TT + 120000);
+  eq("분이 안 온 줄은 기억한 도착 시각을 쓰고 정류장 수는 새 값", [kept[0].end, kept[0].stops_away, kept[0].carried], [TT + 300000, 3, false]);
+  var fresh = B.applyAnchors(row(null, 3), {}, "dongmyeong", TT);
+  eq("기억이 없으면 시간 없이 정류장 수만", [fresh[0].end, fresh[0].stops_away], [null, 3]);
+  // 885 는 동명 종점에서 바로 돌아 학명리 방향으로 간다(사용자 2026-10-24): 동명행으로 학명리 건너2 를 지나는 885 를 학명리행 카드에도 보여준다
+  var tcfg = { stops: { "2479": { direction: "dongmyeong", name: "학명리 건너2", route_ids: null } },
+    turnaround: [{ direction: "hakmyeong", station: "2479", route_id: "88510", route_no: "885", extra_stops: 6, terminal: "동명면우체국" }] };
+  var tp = { "2479": [{ route_id: "88510", route_no: "885", ends: "구미역↔동명", stops_away: 44, minutes: 60 }, { route_id: "30010", route_no: "300", ends: "", stops_away: 5, minutes: 9 }] };
+  eq("학명리행: 동명 종점으로 오는 885 (종점까지 50정류장, 학명리 건너2 지나는 시간 60분)",
+     B.turnaroundRows(tcfg, "hakmyeong", tp).map(function (r) { return [r.route_id, r.route_no, r.stops_away, r.minutes, r.turn.terminal, r.turn.pass]; }),
+     [["88510", "885", 50, 60, "동명면우체국", "학명리 건너2"]]);
+  eq("동명행 카드에는 안 붙고, 정류장을 못 받았으면 없다", [B.turnaroundRows(tcfg, "dongmyeong", tp).length, B.turnaroundRows(tcfg, "hakmyeong", {}).length], [0, 0]);
+  var tr = B.applyAnchors(B.turnaroundRows(tcfg, "hakmyeong", tp), {}, "hakmyeong", TT);
+  var th = B.renderCard("hakmyeong", tr, { failed: 0, total: 2 }, TT);
+  eq("카드: '동명 50정류장 전' 크게 + 학명리 건너2 지나는 시간(받은 값) + 학명리 방향 출발 안내",
+     [th.indexOf("동명 50정류장 전") >= 0, th.indexOf("학명리 건너2 지나는 시간") >= 0, th.indexOf("1시간 0분 00초 뒤") >= 0,
+      th.indexOf("동명 종점에서 바로 학명리 방향으로 출발") >= 0, th.indexOf("학명리 정류소 시간") < 0],
+     [true, true, true, true, true]);
+  // 기존 앱(index.html)이 이 모듈을 같이 불러 시간을 받아 쓴다: 전역 이름을 만들면 app.js 함수와 섞인다
+  eq("bis.js 는 전역 이름을 만들지 않는다", [typeof window.parsePopup, typeof window.esc, typeof window.renderCard, typeof window.countdownText, typeof window.CARD_INFO],
+     ["undefined", "undefined", "undefined", "undefined", "undefined"]);
+  eq("방향별 줄 = 정류장 줄 + 왕복 줄(기존 앱도 이걸 쓴다)", B.directionRows(tcfg, "hakmyeong", tp).map(function (r) { return [r.route_no, r.stops_away]; }), [["885", 50]]);
+  eq("정류장 받기 함수도 내보낸다", typeof B.fetchStop, "function");
   out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
   document.getElementById("out").textContent = out.join("\n");
 })();

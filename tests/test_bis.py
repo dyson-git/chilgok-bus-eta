@@ -178,3 +178,25 @@ def test_second_app_installs_separately_from_the_first():
     assert man["short_name"] != first["short_name"]
     assert all(i["src"].startswith("../icons/") for i in man["icons"])
     assert '<link rel="manifest" href="manifest.json">' in (ROOT / "bis" / "index.html").read_text(encoding="utf-8")
+
+
+def test_stops_to_end_counts_from_a_stop_to_the_last_stop_of_the_route():
+    from bis.parse import stops_to_end
+    sl = [{"WAYPOINT_ORD": i, "STOP_SERVICEID": str(1000 + i), "STOP_KNAME": "s%d" % i} for i in range(1, 64)]
+    sl[56]["STOP_SERVICEID"] = "12479"                                  # 57번째 = 학명리 건너2
+    assert stops_to_end(sl, "12479") == (6, "s63")
+    assert stops_to_end(sl, "99999") is None
+
+
+def test_routes_json_shows_the_885_heading_to_dongmyeong_in_the_hakmyeong_card():
+    # 사용자(2026-10-24): "동명방향으로 885 도착해가면 그게 곧 학명리 방향 버스야" - 885 는 동명 종점에서 바로 돌아 학명리로 간다
+    cfg = json.loads((Path(__file__).resolve().parents[1] / "bis" / "routes.json").read_text(encoding="utf-8"))
+    (t,) = cfg["turnaround"]
+    assert (t["direction"], t["station"], t["route_id"], t["route_no"]) == ("hakmyeong", "2479", "88510", "885")
+    assert 1 <= t["extra_stops"] <= 15 and t["terminal"]
+
+
+def test_first_app_loads_the_bis_module_before_app_js_to_fill_missing_times():
+    html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
+    assert '<script src="bis/bis.js"></script>' in html
+    assert html.index("bis/bis.js") < html.index('src="app.js"')
