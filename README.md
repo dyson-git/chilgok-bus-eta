@@ -18,6 +18,14 @@ GitHub Actions(`.github/workflows/poll.yml`)가 5분마다 `python -m collector.
 결과는 `data/`에 저장되어 `main`에 자동 커밋된다. 저장소 시크릿 `TAGO_SERVICE_KEY`
 (TAGO 공공데이터 서비스키)가 필요하다.
 
+## 클라우드 수집 (지금 쓰는 방식)
+
+Cloudflare Worker cron 이 06:00–22:00 KST 5분마다 TAGO 도착정보를 KV 에 쌓고(7일 보관),
+`.github/workflows/import.yml`(`python -m collector.cloud_import`)이 가져와 `data/`에 기록·커밋한다.
+이 저장소에서는 GitHub 예약 실행(schedule)이 돌지 않아서, PC 작업 스케줄러 "chilgok-bus-eta import"가
+매시 10분(06:10–23:10) `scripts/trigger_import.ps1`로 이 작업을 실행시킨다(로그 `%LOCALAPPDATA%\chilgok-bus-eta\import.log`).
+PC 가 꺼져 있던 시간은 다음 실행 때 채워진다. 아래 로컬 수집 작업("chilgok-bus-eta poll")은 꺼 두었다(data 커밋 충돌).
+
 ## 로컬 수집 (작업 스케줄러)
 
 정기 수집은 로컬 PC의 Windows 작업 스케줄러가 5분마다 `scripts/local_poll.ps1`을
