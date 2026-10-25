@@ -7,6 +7,8 @@
 //   GET /loc                                → 허용된 모든 노선의 운행 중 버스 "현재 위치" {fetched_at, results}
 //   GET /bis?stop=2479                      → 칠곡 BIS 정류장 도착정보 HTML (비교용)
 //   GET /dgb?bs=7181001900                  → 대구 BIS 정류장 도착정보 JSON (칠곡3·급행9-3)
+//   GET /obs?hour=2026-10-24T16             → 그 한 시간(한국 시각) 동안 5분마다 쌓은 도착정보 [{fetched_at, results}]
+//   (Cron Trigger "*/5 * * * *")            → 수집 시간(한국 06:00~22:00)에 전 정류소 도착정보를 KV(바인딩 OBS)에 쌓는다
 
 const ALLOWED_ORIGINS = [
   "https://dyson-git.github.io",
@@ -143,7 +145,43 @@ async function fetchMany(ids, fetchOne, inflight = MAX_INFLIGHT) {
 const fetchAllNodes = (key) => fetchMany([...ALLOWED_NODES], (id, dl) => fetchNode(key, id, dl));
 const fetchAllRoutes = (key) => fetchMany([...ALLOWED_ROUTES], (id, dl) => fetchRoute(key, id, dl), LOC_MAX_INFLIGHT);
 
+// ---- 클라우드 수집 (2026-10-24): PC 를 꺼도 시간표 기록이 이어지게 ----
+// 수집 한 번 = KV 키 하나 "obs:<한국 YYYY-MM-DDTHH>:<분>"(읽고 고쳐 쓰지 않아 겹쳐 돌아도 안 잃는다), 7일 뒤 자동 삭제.
+// GitHub Actions(.github/workflows/import.yml)가 1시간마다 /obs 로 가져가 collector/cloud_import.py 로 기록한다.
+const OBS_TTL_S = 7 * 86400;
+const WINDOW_START_MIN = 6 * 60, WINDOW_END_MIN = 22 * 60; // collector/poll.py 수집 시간과 같다(06:00~22:00)
+
+function kstClock(ms) {
+  const iso = new Date(ms + 9 * 3600 * 1000).toISOString();
+  return { hour: iso.slice(0, 13), minute: iso.slice(14, 16), dayMin: Number(iso.slice(11, 13)) * 60 + Number(iso.slice(14, 16)) };
+}
+
+// TAGO 응답 -> [{routeid, routeno, arrtime}] (collector/tago_client.py 와 같은 해석). 필요한 값만 남겨 KV 에 쓴다.
+function tagoItems(body) {
+  const items = body && body.response && body.response.body && body.response.body.items;
+  if (!items) return [];
+  let list = items.item;
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list)) list = [list];
+  return list.map((it) => ({ routeid: String(it.routeid), routeno: String(it.routeno), arrtime: Number(it.arrtime) }));
+}
+
+async function collectSnapshot(env) {
+  const started = Date.now(), clock = kstClock(started);
+  if (clock.dayMin < WINDOW_START_MIN || clock.dayMin > WINDOW_END_MIN) return;
+  const results = await fetchAllNodes(env.TAGO_SERVICE_KEY);
+  const compact = {};
+  for (const [id, r] of Object.entries(results)) compact[id] = r.ok ? { ok: true, items: tagoItems(r.body) } : { ok: false, error: r.error };
+  await env.OBS.put("obs:" + clock.hour + ":" + clock.minute,
+    JSON.stringify({ fetched_at: new Date(started).toISOString(), results: compact }), { expirationTtl: OBS_TTL_S });
+}
+
 export default {
+  async scheduled(event, env, ctx) {
+    if (!env.OBS || !env.TAGO_SERVICE_KEY) return;
+    ctx.waitUntil(collectSnapshot(env));
+  },
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin") || "";
@@ -205,6 +243,18 @@ export default {
       return new Response(await r.text(), {
         status: r.status,
         headers: { ...headers, "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    if (url.pathname === "/obs") {
+      const hour = url.searchParams.get("hour") || "";
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(hour)) return new Response("bad hour", { status: 400, headers });
+      if (!env.OBS) return new Response("OBS not bound", { status: 503, headers });
+      const listed = await env.OBS.list({ prefix: "obs:" + hour + ":" });
+      const values = await Promise.all(listed.keys.map((k) => env.OBS.get(k.name, "json")));
+      return new Response(JSON.stringify(values.filter(Boolean)), {
+        status: 200,
+        headers: { ...headers, "Content-Type": "application/json; charset=utf-8" },
       });
     }
 

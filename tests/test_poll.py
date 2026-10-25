@@ -47,8 +47,9 @@ def _lines(path):
 def test_is_within_collection_window_boundaries():
     assert is_within_collection_window(dt(2026, 10, 21, 5, 59)) is False
     assert is_within_collection_window(dt(2026, 10, 21, 6, 0)) is True
-    assert is_within_collection_window(dt(2026, 10, 21, 21, 30)) is True
-    assert is_within_collection_window(dt(2026, 10, 21, 21, 31)) is False
+    # 사용자 지시(2026-10-24): 시간표 수집은 06시부터 22시까지
+    assert is_within_collection_window(dt(2026, 10, 21, 22, 0)) is True
+    assert is_within_collection_window(dt(2026, 10, 21, 22, 1)) is False
 
 
 def test_run_poll_outside_window_does_nothing(tmp_path, monkeypatch):

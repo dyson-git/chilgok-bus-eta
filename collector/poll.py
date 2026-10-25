@@ -16,7 +16,7 @@ from collector.tago_client import TagoApiError, get_arrivals
 KST = timezone(timedelta(hours=9))
 
 WINDOW_START = dtime(6, 0, 0)
-WINDOW_END = dtime(21, 30, 0)
+WINDOW_END = dtime(22, 0, 0)  # 사용자 지시(2026-10-24): 06시부터 22시까지
 MAX_ATTEMPTS = 3
 BACKOFF_SECONDS = (2, 4)  # wait after the 1st / 2nd failure
 MIN_CALL_SPACING = 1.2
@@ -65,6 +65,53 @@ def _error_text(exc, service_key):
     return f"{type(exc).__name__}: {_scrub(str(exc), service_key)}"
 
 
+def build_direction_record(direction, cfg, fetch, polled_at):
+    """한 방향의 수집 기록. fetch(reg) -> (관측 목록, 오류 문구 | None).
+    로컬 수집(run_poll)과 클라우드 가져오기(collector/cloud_import.py)가 같이 쓴다. -> (기록 줄, latest.json 항목)"""
+    annotated: list[dict] = []
+    errors: list[dict] = []
+    for reg in cfg["registrations"]:
+        obs_list, err = fetch(reg)
+        if err is not None:
+            errors.append({"city_code": reg["city_code"], "node_id": reg["node_id"], "error": err})
+            continue
+        for o in obs_list:
+            annotated.append({
+                "routeid": o.routeid, "routeno": o.routeno, "eta_min": o.eta_min,
+                "city_code": reg["city_code"], "node_id": reg["node_id"],
+                "toward": is_allowed(o.routeid, o.routeno, direction),
+            })
+    best: dict[str, dict] = {}
+    for o in annotated:
+        if o["toward"] is not True:
+            continue
+        cur = best.get(o["routeid"])
+        if cur is None or o["eta_min"] < cur["eta_min"]:
+            best[o["routeid"]] = o
+    kept = list(best.values()) + [o for o in annotated if o["toward"] is not True]
+    record = {"polled_at": polled_at, "observations": kept, "errors": errors}
+    latest = {
+        "polled_at": polled_at,
+        "observations": [
+            {"routeid": o["routeid"], "routeno": o["routeno"], "eta_min": o["eta_min"]}
+            for o in best.values()],
+        "errors": errors,
+    }
+    return record, latest
+
+
+def append_record(data_dir: Path, direction: str, day: str, record: dict) -> None:
+    out_dir = Path(data_dir) / "observations" / direction
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with (out_dir / f"{day}.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def write_latest(data_dir: Path, latest: dict) -> None:
+    (Path(data_dir) / "latest.json").write_text(
+        json.dumps(latest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep) -> None:
     if not is_within_collection_window(now_kst):
         return
@@ -74,45 +121,16 @@ def run_poll(service_key, directions, now_kst, data_dir, sleep=time.sleep) -> No
     state = {"called": False, "waited": 0.0}
     latest: dict[str, dict] = {}
 
-    for direction, cfg in directions.items():
-        annotated: list[dict] = []
-        errors: list[dict] = []
-        for reg in cfg["registrations"]:
-            obs_list, exc = _call_with_retry(
-                lambda: get_arrivals(service_key, reg["city_code"], reg["node_id"]), sleep, state)
-            if exc is not None:
-                errors.append({"city_code": reg["city_code"], "node_id": reg["node_id"],
-                               "error": _error_text(exc, service_key)})
-                continue
-            for o in obs_list:
-                annotated.append({
-                    "routeid": o.routeid, "routeno": o.routeno, "eta_min": o.eta_min,
-                    "city_code": reg["city_code"], "node_id": reg["node_id"],
-                    "toward": is_allowed(o.routeid, o.routeno, direction),
-                })
-        best: dict[str, dict] = {}
-        for o in annotated:
-            if o["toward"] is not True:
-                continue
-            cur = best.get(o["routeid"])
-            if cur is None or o["eta_min"] < cur["eta_min"]:
-                best[o["routeid"]] = o
-        kept = list(best.values()) + [o for o in annotated if o["toward"] is not True]
-        out_dir = data_dir / "observations" / direction
-        out_dir.mkdir(parents=True, exist_ok=True)
-        record = {"polled_at": polled_at, "observations": kept, "errors": errors}
-        with (out_dir / f"{day}.jsonl").open("a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        latest[direction] = {
-            "polled_at": polled_at,
-            "observations": [
-                {"routeid": o["routeid"], "routeno": o["routeno"], "eta_min": o["eta_min"]}
-                for o in best.values()],
-            "errors": errors,
-        }
+    def fetch(reg):
+        obs_list, exc = _call_with_retry(
+            lambda: get_arrivals(service_key, reg["city_code"], reg["node_id"]), sleep, state)
+        return obs_list, (None if exc is None else _error_text(exc, service_key))
 
-    (data_dir / "latest.json").write_text(
-        json.dumps(latest, ensure_ascii=False, indent=2), encoding="utf-8")
+    for direction, cfg in directions.items():
+        record, latest[direction] = build_direction_record(direction, cfg, fetch, polled_at)
+        append_record(data_dir, direction, day, record)
+
+    write_latest(data_dir, latest)
     rebuild_all(data_dir, as_of=now_kst.date(), directions=directions)
 
 
