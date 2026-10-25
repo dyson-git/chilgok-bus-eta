@@ -2,6 +2,7 @@
 
 1. Worker KV 의 5분 수집 스냅숏(/obs, 읽기만)을 가져와 v3/data/obs 에 시각 기준으로 채운다(빠진 회차만).
 2. v3 기록 + 원본 PC 수집 기록(../data/observations, 읽기만)을 합쳐 같은 회차는 하나로, 도착을 판정한다.
+   칠곡·대구 버스정보시스템 기록(v3/data/bis, busv3.collect)은 따로 판정해 TAGO 에 없는 도착만 더한다(같은 번호 10분 안이면 하나).
 3. v3/data/arrivals.json, stats.json, meta.json 을 쓴다. 원본 data/ 는 건드리지 않는다.
 """
 import json
@@ -18,6 +19,7 @@ from busv3.records import KST
 RELAY_URL = "https://chilgok-bus-relay.wisdomdy.workers.dev"
 KEEP_DAYS = 7          # Worker KV 보관 기간
 WINDOW_DAYS = 30       # 시간표에 쓰는 최근 기간
+SAME_BUS = timedelta(minutes=10)  # TAGO·버스정보시스템이 같은 버스를 각각 판정하면 시각이 몇 분 다를 수 있다
 SPREAD_MIN = 30        # 시간표 한 줄 = 날짜가 달라도 30분 안의 같은 노선(사용자 지시 "비슷한 시간대끼리")
 V3_DIR = Path(__file__).resolve().parents[1]
 
@@ -56,6 +58,16 @@ def load_original(orig_dir, direction):
     return out
 
 
+def combine(tago, other):
+    """TAGO 도착 + 버스정보시스템 도착 중 TAGO 에 없는 것(같은 노선 번호 10분 안이면 같은 버스)."""
+    out = list(tago)
+    for a in other:
+        if not any(x.routeno == a.routeno and abs(x.when - a.when) <= SAME_BUS for x in out):
+            a.source = "bis"
+            out.append(a)
+    return sorted(out, key=lambda a: a.when)
+
+
 def _m(t):
     return t.hour * 60 + t.minute
 
@@ -92,11 +104,12 @@ def build(own_dir, orig_dir, as_of: date):
     arrivals, stats, meta = {}, {}, {"built_at": datetime.now(KST).isoformat(timespec="seconds"), "rounds": {}, "arrivals": {}}
     for direction in rules.REGISTRATIONS:
         rounds = resolve.merge_rounds(store.load(own_dir, direction) + load_original(orig_dir, direction))
-        found = resolve.arrivals(rounds)
+        found = combine(resolve.arrivals(rounds), resolve.arrivals(store.load(own_dir, direction, "bis")))
         by_date = defaultdict(list)
         for a in found:
             by_date[a.when.date()].append(a)
-        arrivals[direction] = {d.isoformat(): [{"arrival_time": a.when.isoformat(timespec="seconds"), "routeid": a.routeid, "routeno": a.routeno}
+        arrivals[direction] = {d.isoformat(): [{"arrival_time": a.when.isoformat(timespec="seconds"), "routeid": a.routeid, "routeno": a.routeno,
+                                                "source": a.source}
                                                for a in items] for d, items in sorted(by_date.items())}
         stats[direction] = compute_stats(by_date, as_of)
         meta["rounds"][direction] = len(rounds)
@@ -109,6 +122,11 @@ def build(own_dir, orig_dir, as_of: date):
 def main() -> int:
     own, orig = V3_DIR / "data", V3_DIR.parent / "data"
     now = datetime.now(KST)
+    # busv3.collect 가 받아 둔 버스정보시스템 기록(--bis 파일, 저장소 밖 임시 파일)을 먼저 채운다
+    if "--bis" in sys.argv:
+        from busv3 import bis
+        polls = bis.read_polls(sys.argv[sys.argv.index("--bis") + 1])
+        print("버스정보시스템 새 회차", sum(store.add(own, d, snaps, kind="bis") for d, snaps in polls.items()))
     hours = hours_to_fetch(store.last_time(own), now)
     added = {}
     for snap in fetch_cloud(hours):

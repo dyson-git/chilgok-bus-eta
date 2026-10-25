@@ -20,6 +20,7 @@ class Arrival:
     when: datetime
     routeid: str
     routeno: str
+    source: str = "tago"
 
 
 def merge_rounds(snaps):

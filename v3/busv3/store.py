@@ -1,4 +1,4 @@
-"""v3 자체 기록: <data>/obs/<방향>/<날짜>.jsonl, 한 줄 = {"t", "obs": {노선id: [번호, 분]}, "complete"}.
+"""v3 자체 기록: <data>/<kind>/<방향>/<날짜>.jsonl (kind: obs = TAGO 클라우드, bis = 칠곡·대구 버스정보시스템), 한 줄 = {"t", "obs": {노선id: [번호, 분]}, "complete"}.
 같은 시각(분 단위)이 이미 있으면 건너뛰고, 없으면 시각 순서와 상관없이 채운다(원본처럼 '마지막 기록 뒤만' 붙이지 않는다).
 파일은 날짜마다 시각순으로 다시 쓴다."""
 import json
@@ -12,8 +12,8 @@ def _key(t):
     return t.strftime("%Y-%m-%dT%H:%M")
 
 
-def _path(data_dir, direction, day):
-    return Path(data_dir) / "obs" / direction / f"{day}.jsonl"
+def _path(data_dir, direction, day, kind="obs"):
+    return Path(data_dir) / kind / direction / f"{day}.jsonl"
 
 
 def _read(path):
@@ -27,20 +27,20 @@ def _read(path):
     return out
 
 
-def load(data_dir, direction):
+def load(data_dir, direction, kind="obs"):
     snaps = []
-    for path in sorted((Path(data_dir) / "obs" / direction).glob("*.jsonl")):
+    for path in sorted((Path(data_dir) / kind / direction).glob("*.jsonl")):
         snaps += _read(path)
     return sorted(snaps, key=lambda s: s.t)
 
 
-def add(data_dir, direction, snaps) -> int:
+def add(data_dir, direction, snaps, kind="obs") -> int:
     by_day = {}
     for s in snaps:
         by_day.setdefault(s.t.date().isoformat(), []).append(s)
     added = 0
     for day, new in by_day.items():
-        path = _path(data_dir, direction, day)
+        path = _path(data_dir, direction, day, kind)
         cur = {_key(s.t): s for s in _read(path)}
         for s in new:
             if _key(s.t) not in cur:

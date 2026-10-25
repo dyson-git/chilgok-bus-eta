@@ -1,11 +1,17 @@
 name: v3 timetable
 
-# v3 시간표: Worker KV 의 5분 수집을 v3/data 에 채우고 도착·시간표를 다시 만든다(v3/busv3/update.py).
+# v3 시간표(v3/busv3). 매시간:
+#  1) 55분 동안 2분마다 칠곡·대구 버스정보시스템을 받아 임시 파일에 모은다(busv3.collect) - TAGO 가 빠뜨리는 버스도 남기려고
+#  2) Worker KV 의 TAGO 5분 수집을 가져오고, 둘을 합쳐 도착·시간표를 만들어 v3/data 에 커밋한다(busv3.update)
 # 원본 data/ 와 import.yml 은 건드리지 않는다. 올리는 사이 다른 커밋이 끼면 새로 받아 처음부터 다시(최대 3번).
 on:
   schedule:
-    - cron: "25 * * * *"
+    - cron: "0 21-23,0-12 * * *"   # 한국 06~21시 정각(그 한 시간을 받는다)
   workflow_dispatch:
+    inputs:
+      minutes:
+        description: "버스정보시스템을 받을 시간(분)"
+        default: "55"
 
 permissions:
   contents: write
@@ -17,6 +23,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,6 +32,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install requests
+      - name: Collect bus info systems
+        working-directory: v3
+        run: python -m busv3.collect "$RUNNER_TEMP/bis.jsonl" "${{ github.event.inputs.minutes || '55' }}" 120
       - name: Build and commit v3 timetable
         working-directory: v3
         run: |
@@ -33,9 +43,9 @@ jobs:
           for attempt in 1 2 3; do
             git fetch --quiet origin main
             git reset --hard origin/main
-            python -m busv3.update
+            python -m busv3.update --bis "$RUNNER_TEMP/bis.jsonl"
             git add data
-            if git diff --cached --quiet; then echo "no change"; exit 0; fi
+            if git diff --cached --quiet -- data/obs data/bis data/arrivals.json data/stats.json; then echo "no change"; exit 0; fi
             git commit -m "v3 data: $(TZ=Asia/Seoul date +%Y-%m-%dT%H:%M)"
             if git push origin HEAD:main; then exit 0; fi
             echo "push raced (attempt $attempt), retrying"
