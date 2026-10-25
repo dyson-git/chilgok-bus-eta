@@ -45,3 +45,17 @@
 {"polled_at": "2026-10-25T09:35:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 19.15, "city_code": "37050", "node_id": "GMB2479", "toward": true}, {"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 26.533333333333335, "city_code": "22", "node_id": "DGB7181001900", "toward": true}, {"routeid": "DGB4090003001", "routeno": "칠곡3", "eta_min": 10.233333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
 {"polled_at": "2026-10-25T09:40:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 9.2, "city_code": "37050", "node_id": "GMB2479", "toward": true}, {"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 22.566666666666666, "city_code": "22", "node_id": "DGB7181001900", "toward": true}, {"routeid": "DGB4090003001", "routeno": "칠곡3", "eta_min": 6.416666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
 {"polled_at": "2026-10-25T09:45:51+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 16.933333333333334, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T09:50:51+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 12.55, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T09:55:52+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 7.716666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T10:00:51+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 3.05, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T10:05:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-25T10:10:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-25T10:15:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-25T10:20:52+09:00", "observations": [], "errors": [{"city_code": "37100", "node_id": "GYB369001900", "error": "The operation was aborted due to timeout"}]}
+{"polled_at": "2026-10-25T10:25:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-25T10:30:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-25T10:35:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-25T10:40:51+09:00", "observations": [], "errors": [{"city_code": "22", "node_id": "DGB7181001900", "error": "The operation was aborted due to timeout"}]}
+{"polled_at": "2026-10-25T10:45:51+09:00", "observations": [{"routeid": "DGB4090003001", "routeno": "칠곡3", "eta_min": 13.483333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T10:50:51+09:00", "observations": [{"routeid": "DGB4090003001", "routeno": "칠곡3", "eta_min": 7.833333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-25T10:55:51+09:00", "observations": [{"routeid": "DGB4090003001", "routeno": "칠곡3", "eta_min": 3.183333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
