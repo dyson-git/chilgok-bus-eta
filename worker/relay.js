@@ -54,6 +54,7 @@ const ATTEMPTS = 3;
 const LOC_ATTEMPTS = 2; // /loc 는 노선이 20개라 3번씩 시도하면 Workers 무료 한도(요청 1회당 외부 호출 50개)를 넘어 뒤쪽 노선이 통째로 실패한다
 const ATTEMPT_TIMEOUT_MS = 3500;
 const BACKOFF_MS = [250, 500];
+const RATE_BACKOFF_MS = 1000; // TAGO 23(초당 요청 제한): 0.25초 뒤엔 또 걸린다(2026-10-25 /loc 20개 전부 23) - 1초 쉬고 다시 묻는다
 const MAX_INFLIGHT = 6;
 const BUDGET_MS = 9000;
 const CACHE_TTL_S = 60; // /all: 화면이 받은 시각(fetched_at)부터 초 단위로 줄여 보여주므로 길게 둔다(TAGO 호출을 줄인다)
@@ -95,7 +96,7 @@ async function fetchTago(baseUrl, params, deadline, attempts = ATTEMPTS) {
   let lastErr = "unknown";
   for (let i = 0; i < attempts; i++) {
     if (i > 0) {
-      const wait = BACKOFF_MS[i - 1];
+      const wait = lastErr === "TAGO 23" ? RATE_BACKOFF_MS : BACKOFF_MS[i - 1];
       if (Date.now() + wait >= deadline) break;
       await sleep(wait);
     }

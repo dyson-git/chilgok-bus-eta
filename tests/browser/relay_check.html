@@ -63,6 +63,26 @@ window.onerror = function (m, s, l) { document.getElementById("out").textContent
   await R.scheduled({}, { TAGO_SERVICE_KEY: "k" }, { waitUntil: function () { ran = true; } });
   eq("KV 가 연결 안 됐으면 수집하지 않는다", ran, false);
 
+  // TAGO 23(초당 요청 제한)은 0.25초 뒤 다시 물어도 또 걸린다 - 1초 쉬고 다시 묻는다. 다른 오류는 그대로 0.25초.
+  async function retryGap(code) {
+    var calls = [], f0 = window.fetch;
+    window.fetch = async function () {
+      calls.push(realNow());
+      var fail = calls.length === 1;
+      return { json: async function () { return fail ? { OpenAPI_ServiceResponse: { cmmMsgHeader: { returnReasonCode: code } } } :
+        { response: { header: { resultCode: "00" }, body: { items: "" } } }; } };
+    };
+    try { await fetchTago("https://x/", {}, realNow() + 9000, 2); } finally { window.fetch = f0; }
+    return calls.length === 2 ? calls[1] - calls[0] : -1;
+  }
+  var g23 = await retryGap("23"), g04 = await retryGap("04");
+  eq("TAGO 23 이면 1초 쉬고 다시, 다른 오류는 0.25초", [g23 >= 950 && g23 < 1500, g04 >= 200 && g04 < 700], [true, true]);
+  var t0 = realNow(), late = null;
+  window.fetch = async function () { return { json: async function () { return { OpenAPI_ServiceResponse: { cmmMsgHeader: { returnReasonCode: "23" } } }; } }; };
+  try { await fetchTago("https://x/", {}, t0 + 600, 2); } catch (e) { late = String(e.message); }
+  window.fetch = realFetch;
+  eq("남은 시간이 1초가 안 되면 기다리지 않고 23 오류로 끝낸다", [late, realNow() - t0 < 400], ["TAGO 23", true]);
+
   out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
   document.getElementById("out").textContent = out.join("\n");
 })().catch(function (e) { document.getElementById("out").textContent = "ERROR " + e; });
