@@ -1,94 +1,18 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-10-25T14:55:51+09:00",
-    "observations": [],
-    "errors": [
+    "polled_at": "2026-10-25T20:15:51+09:00",
+    "observations": [
       {
-        "city_code": "37390",
-        "node_id": "CGB2142",
-        "error": "The operation was aborted due to timeout"
-      },
-      {
-        "city_code": "37050",
-        "node_id": "GMB2142",
-        "error": "The operation was aborted due to timeout"
-      },
-      {
-        "city_code": "22",
-        "node_id": "DGB7181001000",
-        "error": "The operation was aborted due to timeout"
-      },
-      {
-        "city_code": "37390",
-        "node_id": "CGB2141",
-        "error": "The operation was aborted due to timeout"
-      },
-      {
-        "city_code": "37050",
-        "node_id": "GMB2141",
-        "error": "The operation was aborted due to timeout"
-      },
-      {
-        "city_code": "22",
-        "node_id": "DGB3690003750",
-        "error": "The operation was aborted due to timeout"
-      },
-      {
-        "city_code": "37390",
-        "node_id": "CGB4870",
-        "error": "unknown"
-      },
-      {
-        "city_code": "37390",
-        "node_id": "CGB4871",
-        "error": "unknown"
-      },
-      {
-        "city_code": "37050",
-        "node_id": "GMB4871",
-        "error": "unknown"
-      },
-      {
-        "city_code": "37100",
-        "node_id": "GYB369007000",
-        "error": "unknown"
-      },
-      {
-        "city_code": "22",
-        "node_id": "DGB7181007000",
-        "error": "unknown"
-      },
-      {
-        "city_code": "22",
-        "node_id": "DGB3690005830",
-        "error": "unknown"
+        "routeid": "DGB4090003011",
+        "routeno": "칠곡3",
+        "eta_min": 0.38333333333333336
       }
-    ]
+    ],
+    "errors": []
   },
   "dongmyeong": {
-    "polled_at": "2026-10-25T14:55:51+09:00",
+    "polled_at": "2026-10-25T20:15:51+09:00",
     "observations": [],
-    "errors": [
-      {
-        "city_code": "37390",
-        "node_id": "CGB2479",
-        "error": "unknown"
-      },
-      {
-        "city_code": "37050",
-        "node_id": "GMB2479",
-        "error": "unknown"
-      },
-      {
-        "city_code": "37100",
-        "node_id": "GYB369001900",
-        "error": "unknown"
-      },
-      {
-        "city_code": "22",
-        "node_id": "DGB7181001900",
-        "error": "unknown"
-      }
-    ]
+    "errors": []
   }
 }
