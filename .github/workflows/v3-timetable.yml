@@ -1,0 +1,44 @@
+name: v3 timetable
+
+# v3 시간표: Worker KV 의 5분 수집을 v3/data 에 채우고 도착·시간표를 다시 만든다(v3/busv3/update.py).
+# 원본 data/ 와 import.yml 은 건드리지 않는다. 올리는 사이 다른 커밋이 끼면 새로 받아 처음부터 다시(최대 3번).
+on:
+  schedule:
+    - cron: "25 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v3-timetable
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Build and commit v3 timetable
+        working-directory: v3
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            git fetch --quiet origin main
+            git reset --hard origin/main
+            python -m busv3.update
+            git add data
+            if git diff --cached --quiet; then echo "no change"; exit 0; fi
+            git commit -m "v3 data: $(TZ=Asia/Seoul date +%Y-%m-%dT%H:%M)"
+            if git push origin HEAD:main; then exit 0; fi
+            echo "push raced (attempt $attempt), retrying"
+            sleep $((attempt * 15))
+          done
+          exit 1

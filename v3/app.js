@@ -131,8 +131,8 @@
       .catch(function () { return null; });
   }
   function loadTimes() {
-    getJson("../data/stats.json").then(function (j) { if (j) { times.stats = j; drawTimes(); } });
-    getJson("../data/arrivals.json").then(function (j) { if (j) { times.arrivals = j; drawTimes(); } });
+    getJson("data/stats.json").then(function (j) { if (j) { times.stats = j; drawTimes(); } });
+    getJson("data/arrivals.json").then(function (j) { if (j) { times.arrivals = j; drawTimes(); } });
   }
   function isOpen(id) { return id === "ref" ? times.fold.ref === true : times.fold[id] !== false; }
   function foldBox(id, title, body, small) {
