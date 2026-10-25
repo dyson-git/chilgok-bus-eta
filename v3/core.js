@@ -140,6 +140,57 @@
     return order.map(function (k) { return best[k]; });
   }
 
+  // 칠곡 정류장 sid 를 TAGO 로 대신: 중계 /all 응답 -> 화면 줄(source "tago") | null(대신할 수 없음·전부 실패).
+  // TAGO 노선 id 는 칠곡 버스정보시스템 id 에 도시 머리(CGB·GMB)가 붙은 모양(CGB30020 = 30020). 대구 노선(DGB)은 뺀다.
+  function tagoItems(node) {
+    var items = node && node.body && node.body.response && node.body.response.body && node.body.response.body.items;
+    var list = items && items.item;
+    if (list === undefined || list === null) return [];
+    return Array.isArray(list) ? list : [list];
+  }
+  function tagoRows(cfg, sid, all) {
+    var tc = cfg && cfg.tago && cfg.tago.stations && cfg.tago.stations[sid], st = cfg && cfg.stops && cfg.stops[sid];
+    var results = all && all.results;
+    if (!tc || !st || !results) return null;
+    var parsed = [], anyOk = false;
+    tc.nodes.forEach(function (id) {
+      var node = results[id];
+      if (!node || !node.ok) return;
+      anyOk = true;
+      tagoItems(node).forEach(function (it) {
+        var rid = String((it && it.routeid) || "");
+        if (!/^(CGB|GMB)/.test(rid)) return;
+        var sec = Number(it.arrtime), cnt = Number(it.arrprevstationcnt);
+        parsed.push({
+          route_id: rid.slice(3), route_no: clean(it.routeno || ""), name: "", ends: "",
+          stops: isFinite(cnt) && cnt >= 0 ? cnt : null, minutes: isFinite(sec) && sec >= 0 ? Math.round(sec / 60) : null,
+          bus: true, text: "", board: (cfg.tago.names && cfg.tago.names[id]) || st.name
+        });
+      });
+    });
+    if (!anyOk) return null;
+    var rows;
+    if (tc.same_stop) rows = directionRows(cfg, sid, parsed);
+    else {
+      var best = {}, order = [];
+      parsed.forEach(function (p) {
+        if (st.route_ids && st.route_ids.indexOf(p.route_id) < 0) return;
+        if (!isNum(p.minutes) && !isNum(p.stops)) return;
+        var r = {
+          key: st.direction + ":" + p.route_id, dir: st.direction, sid: sid, route_id: p.route_id, route_no: p.route_no,
+          label: null, board: p.board, stops: p.stops, minutes: p.minutes, estimated: false, offset_min: null, base: null,
+          turn: null, depart: null, vehicle: null
+        };
+        var b = best[r.key], rank = function (x) { return isNum(x.minutes) ? x.minutes : 10000 + x.stops; };
+        if (!b) order.push(r.key);
+        if (!b || rank(r) < rank(b)) best[r.key] = r;
+      });
+      rows = order.map(function (k) { return best[k]; });
+    }
+    rows.forEach(function (r) { r.source = "tago"; });
+    return rows;
+  }
+
   // 한 방향 카드에 영향을 주는 정류장들(그 방향 정류장 + 되돌이 노선을 보는 정류장)
   function stationsOf(cfg, dir) {
     var out = Object.keys(cfg.stops).filter(function (sid) { return cfg.stops[sid].direction === dir; });
@@ -238,6 +289,7 @@
       if (r.vehicle) sub.push(esc("차량 " + r.vehicle));
     }
     if (r.source === "daegu") sub.push("대구 정보");
+    if (r.source === "tago") sub.push("TAGO 정보(칠곡 시스템 대신)");
     if (!r.live) sub.push(esc(clockHM(r.seenAt) + " 기준"));
     return '<div class="bus' + (r.live ? "" : " carried") + '"><div class="top"><span class="no">' + esc(r.route_no) + '번</span><span class="when"' + attr + ">" +
       esc(big) + "</span></div>" + (sub.length ? '<div class="where">' + sub.join(" · ") + "</div>" : "") + "</div>";
@@ -305,7 +357,7 @@
   var api = {
     HOLD_MS: HOLD_MS, SNAP_MS: SNAP_MS, FRESH_MS: FRESH_MS,
     esc: esc, clockHM: clockHM, clockHMS: clockHMS,
-    parseChilgok: parseChilgok, parseDaegu: parseDaegu, directionRows: directionRows, stationsOf: stationsOf,
+    parseChilgok: parseChilgok, parseDaegu: parseDaegu, directionRows: directionRows, tagoRows: tagoRows, stationsOf: stationsOf,
     newState: newState, ingest: ingest, fail: fail, view: view, save: save, restore: restore,
     countdownText: countdownText, stopsText: stopsText, renderRow: renderRow, renderCard: renderCard,
     renderStats: renderStats, todayPassed: todayPassed, kstDate: kstDate, renderReference: renderReference

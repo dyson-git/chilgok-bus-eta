@@ -1,13 +1,14 @@
 // v3 화면 연결. 규칙은 core.js(순수 함수)에 있고 여기는 받기·그리기·저장만 한다.
 // - 정류장 6곳을 따로 받아 오는 대로 그린다(느린 정류장 하나가 화면 전체를 붙잡지 않게). 정류장마다 9초 제한.
-// - 확인이 어떤 이유로 끝나지 않아도 15초 뒤엔 새 확인을 시작한다("확인 중…"에 멈추지 않게).
+// - 칠곡 정류장을 못 받으면 TAGO 로 대신한다(정류장 9초 + TAGO 9초까지 기다릴 수 있게).
+// - 확인이 어떤 이유로 끝나지 않아도 20초 뒤엔 새 확인을 시작한다("확인 중…"에 멈추지 않게).
 // - 앱을 열면 저장해 둔 받은 시간을 먼저 보여주고(기준 표시), 30초마다·화면으로 돌아올 때·카드를 누르면 새로 받는다.
 "use strict";
 (function () {
   var V = window.V3, CFG = window.V3_STOPS;
   var RELAY = window.V3_RELAY || "https://chilgok-bus-relay.wisdomdy.workers.dev";
   var DIRS = ["dongmyeong", "hakmyeong"];
-  var STATION_TIMEOUT_MS = 9000, STUCK_MS = 15000, REFRESH_MS = 30000, BACK_MIN_MS = 10000;
+  var STATION_TIMEOUT_MS = 9000, STUCK_MS = 20000, REFRESH_MS = 30000, BACK_MIN_MS = 10000;
   var MEMO_KEY = "v3.memo", FOLD_KEY = "v3.fold";
   var SIDS = Object.keys(CFG.stops);
 
@@ -16,7 +17,7 @@
     refresh: document.getElementById("refresh"), checked: document.getElementById("checked"), times: document.getElementById("times")
   };
   var state = V.restore(read(MEMO_KEY), Date.now());
-  var round = { id: 0, startedAt: 0, doneAt: null, pending: {}, ok: {}, failed: {} };
+  var round = { id: 0, startedAt: 0, doneAt: null, pending: {}, ok: {}, failed: {}, tago: {}, all: null };
   var times = { stats: null, arrivals: null, ref: null, fold: readFold() };
 
   function read(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
@@ -53,18 +54,36 @@
     return Promise.race([got, timeout]).then(function (rows) { clearTimeout(timer); return rows; });
   }
 
+  // 칠곡 정류장을 못 받으면 TAGO(중계 /all, 한 확인에 한 번만 받는다)로 그 정류장을 대신한다. 대신도 못 하면 null.
+  function fetchAll() {
+    if (round.all) return round.all;
+    var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, STATION_TIMEOUT_MS);
+    round.all = fetchText(RELAY + "/all", ctl ? ctl.signal : undefined)
+      .then(function (text) { clearTimeout(timer); return JSON.parse(text); })
+      .catch(function () { clearTimeout(timer); return null; });
+    return round.all;
+  }
+  function viaTago(sid) {
+    if (CFG.stops[sid].source === "daegu" || !(CFG.tago && CFG.tago.stations && CFG.tago.stations[sid])) return Promise.resolve(null);
+    return fetchAll().then(function (all) { return V.tagoRows(CFG, sid, all); });
+  }
+
   function check() {
     var now = Date.now();
     if (round.doneAt === null && round.startedAt && now - round.startedAt < STUCK_MS) return;  // 확인 중
     var id = ++round.id, left = SIDS.length;
-    round.startedAt = now; round.doneAt = null; round.pending = {}; round.ok = {}; round.failed = {};
+    round.startedAt = now; round.doneAt = null; round.pending = {}; round.ok = {}; round.failed = {}; round.tago = {}; round.all = null;
     SIDS.forEach(function (sid) { round.pending[sid] = true; });
     drawCards();
     SIDS.forEach(function (sid) {
       fetchStation(sid).then(function (parsed) {
+        if (parsed) return { rows: V.directionRows(CFG, sid, parsed) };
+        return viaTago(sid).then(function (rows) { return rows ? { rows: rows, tago: true } : null; });
+      }).then(function (got) {
         if (id !== round.id) return;
         var t = Date.now();
-        if (parsed) { V.ingest(state, sid, V.directionRows(CFG, sid, parsed), t); round.ok[sid] = true; }
+        if (got) { V.ingest(state, sid, got.rows, t); round.ok[sid] = true; if (got.tago) round.tago[sid] = true; }
         else { V.fail(state, sid, t); round.failed[sid] = true; }
         delete round.pending[sid];
         if (--left === 0) { round.doneAt = t; write(MEMO_KEY, V.save(state)); }
@@ -106,7 +125,8 @@
       s[1]++;
       if (round.ok[sid]) s[0]++;
     });
-    var parts = ["칠곡 " + src.chilgok[0] + "/" + src.chilgok[1], "대구 " + src.daegu[0] + "/" + src.daegu[1]];
+    var subs = Object.keys(round.tago).length;
+    var parts = ["칠곡 " + (src.chilgok[0] - subs) + "/" + src.chilgok[1] + (subs ? " (TAGO로 대신 " + subs + ")" : ""), "대구 " + src.daegu[0] + "/" + src.daegu[1]];
     return busy ? "확인 중… · " + parts.join(" · ") : V.clockHMS(round.doneAt) + " 확인 · " + parts.join(" · ");
   }
 
@@ -183,4 +203,6 @@
   check();
   loadTimes();
   getJson("../timetable.json").then(function (j) { if (j) { times.ref = j; drawTimes(); } });
+  // 크롬 '앱 설치' 조건(서비스 워커). 없어도 화면은 그대로 동작한다.
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
 })();

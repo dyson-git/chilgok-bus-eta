@@ -260,6 +260,32 @@ run("timetable", function () {
   eq("한국 날짜", V.kstDate(Date.UTC(2026, 9, 24, 15, 30)), "2026-10-25");
 });
 
+// 칠곡 버스정보시스템이 안 될 때 TAGO(/all 중계 응답, 원본 그대로)로 대신
+function tagoNode(items) { return { ok: true, body: { response: { body: { items: items.length ? { item: items.length === 1 ? items[0] : items } : "" } } } }; }
+function ti(routeid, routeno, sec, cnt) { return { routeid: routeid, routeno: routeno, arrtime: sec, arrprevstationcnt: cnt }; }
+run("tagoFallback", function () {
+  var all = { results: {
+    "37390:CGB2479": tagoNode([ti("CGB30010", "300", 300, 4), ti("CGB30010", "300", 1500, 15)]),
+    "37050:GMB2479": tagoNode([ti("GMB88510", "885", 600, 5)]),
+    "37390:CGB2142": tagoNode([ti("CGB30020", "300", 420, 3), ti("CGB30010", "300", 120, 1), ti("DGB4090003001", "칠곡3", 60, 1)]),
+    "37390:CGB4870": tagoNode([ti("CGB30020", "300", 240, 1)]),
+    "37390:CGB2141": tagoNode([ti("CGB9-310", "9-3", 90, 1)]),
+    "37050:GMB2142": { ok: false, error: "TAGO 23" }
+  } };
+  var d = V.tagoRows(CFG, "2479", all);
+  eq("학명리 건너2: 같은 정류장 TAGO 값 그대로(노선마다 가장 빠른 차, 885 도 동명행)", pick(d.filter(function (r) { return !r.turn; }), ["key", "minutes", "stops", "source"]), [["dongmyeong:30010", 5, 4, "tago"], ["dongmyeong:88510", 10, 5, "tago"]]);
+  eq("885 되돌이도 TAGO 로", pick(d.filter(function (r) { return r.turn; }), ["key", "stops", "minutes"]), [["hakmyeong:88510:turn", 14, 10]]);
+  var h = V.tagoRows(CFG, "2483", all);
+  eq("학명리행: 동명 승차 정류장 TAGO 값 그대로(빼기 없음), 규칙에 없는 노선·대구 노선 제외",
+    pick(h, ["key", "minutes", "stops", "board", "estimated", "source"]), [["hakmyeong:30020", 4, 1, "동명교통", false, "tago"]]);
+  eq("9-3 은 등골마을입구 대신 동명면우체국 값", pick(V.tagoRows(CFG, "2485", all), ["key", "minutes", "board"]), [["hakmyeong:9-310", 2, "동명면우체국"]]);
+  eq("TAGO 도 전부 실패면 null", V.tagoRows(CFG, "2479", { results: { "37390:CGB2479": { ok: false }, "37050:GMB2479": { ok: false } } }), null);
+  eq("응답 없음 -> null", V.tagoRows(CFG, "2479", null), null);
+  eq("대구 정류장은 대신하지 않는다", V.tagoRows(CFG, "dgb:7181001900", all), null);
+  var row = V.renderRow({ key: "dongmyeong:30010", route_no: "300", stops: 4, end: T0 + 300000, live: true, seenAt: T0, board: "학명리 건너2", source: "tago" }, T0);
+  yes("TAGO 로 대신한 줄은 표시", row.indexOf("TAGO") >= 0);
+});
+
 document.getElementById("out").textContent = out.join("\n");
 </script>
 </body></html>
