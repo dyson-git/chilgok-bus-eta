@@ -143,6 +143,31 @@
         "arrival_time": "2026-10-26T08:36:26+09:00",
         "routeid": "DGB4090003001",
         "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-26T09:24:55+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T09:51:22+09:00",
+        "routeid": "DGB4090003001",
+        "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-26T11:24:54+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T13:28:47+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T13:46:12+09:00",
+        "routeid": "DGB4090003014",
+        "routeno": "칠곡3"
       }
     ]
   },
@@ -345,6 +370,16 @@
         "arrival_time": "2026-10-26T07:59:07+09:00",
         "routeid": "DGB4090003001",
         "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-26T09:52:25+09:00",
+        "routeid": "DGB4090003001",
+        "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-26T10:02:26+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
       }
     ]
   }
