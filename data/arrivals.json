@@ -168,6 +168,41 @@
         "arrival_time": "2026-10-26T13:46:12+09:00",
         "routeid": "DGB4090003014",
         "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-26T15:06:17+09:00",
+        "routeid": "DGB4090003011",
+        "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-26T15:23:52+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T17:25:05+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T19:01:20+09:00",
+        "routeid": "DGB4090003011",
+        "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-26T20:16:16+09:00",
+        "routeid": "DGB4090003011",
+        "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-26T21:24:08+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T21:36:15+09:00",
+        "routeid": "DGB4090003015",
+        "routeno": "칠곡3"
       }
     ]
   },
@@ -380,6 +415,36 @@
         "arrival_time": "2026-10-26T10:02:26+09:00",
         "routeid": "DGB1000009300",
         "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T16:05:23+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T17:34:10+09:00",
+        "routeid": "GMB88510",
+        "routeno": "885"
+      },
+      {
+        "arrival_time": "2026-10-26T18:04:40+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T20:08:00+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
+      },
+      {
+        "arrival_time": "2026-10-26T20:08:36+09:00",
+        "routeid": "DGB4090003011",
+        "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-10-26T21:27:42+09:00",
+        "routeid": "DGB4090003011",
+        "routeno": "칠곡3"
       }
     ]
   }
