@@ -154,6 +154,23 @@
   eq("bis.js 는 전역 이름을 만들지 않는다", [typeof window.parsePopup, typeof window.esc, typeof window.renderCard, typeof window.countdownText, typeof window.CARD_INFO],
      ["undefined", "undefined", "undefined", "undefined", "undefined"]);
   eq("방향별 줄 = 정류장 줄 + 왕복 줄(기존 앱도 이걸 쓴다)", B.directionRows(tcfg, "hakmyeong", tp).map(function (r) { return [r.route_no, r.stops_away]; }), [["885", 50]]);
+  // 급행9-3 시간표 기준(2026-10-25 실측: 시간표보다 이르면 정류장에서 기다림 - 대구 "22분"이던 버스가 10분 늦게 옴)
+  var fcfg = { stops: { "dgb:1": { name: "학명리 건너2", direction: "dongmyeong", source: "daegu", route_nos: ["급행9-3", "칠곡3"] } },
+    schedule_floor: [{ direction: "dongmyeong", route_no: "급행9-3", times: ["14:02", "16:02"] }] };
+  function clk(h, m) { var d = new Date(2026, 9, 25, h, m, 0); return d.getTime(); }
+  function frows(min, now) { return B.directionRows(fcfg, "dongmyeong", { "dgb:1": [{ route_id: "dgb:9", route_no: "급행9-3", ends: "", stops_away: 13, minutes: min }] }, now); }
+  var fl = frows(22, clk(15, 31))[0];
+  eq("대구 시간(15:53)이 시간표(16:02)보다 이르면 시간표 시각, 표시용 sched", [Math.round(fl.minutes * 60), fl.sched], [31 * 60, "16:02"]);
+  var fa = B.applyAnchors([fl], {}, "dongmyeong", clk(15, 31));
+  eq("기억에 넣으면 도착 시각 = 16:02 정확히", fa[0].end, clk(16, 2));
+  var late = frows(40, clk(15, 31))[0];
+  eq("늦게 오는 버스(16:11)는 받은 시간 그대로", [late.minutes, late.sched || null], [40, null]);
+  var far = frows(10, clk(15, 0))[0];
+  eq("가장 가까운 시간표가 40분보다 멀면 손대지 않는다(15:10 은 14:02·16:02 둘 다 멀다)", [far.minutes, far.sched || null], [10, null]);
+  var other = B.directionRows(fcfg, "dongmyeong", { "dgb:1": [{ route_id: "dgb:3", route_no: "칠곡3", ends: "", stops_away: 20, minutes: 22 }] }, clk(15, 31))[0];
+  eq("다른 노선은 손대지 않는다", [other.minutes, other.sched || null], [22, null]);
+  var fh = B.renderCard("dongmyeong", fa, { failed: 0 }, clk(15, 31));
+  eq("카드에 시간표 기준 표시", fh.indexOf("시간표 기준(16:02)") >= 0, true);
   eq("정류장 받기 함수도 내보낸다", typeof B.fetchStop, "function");
   out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
   document.getElementById("out").textContent = out.join("\n");

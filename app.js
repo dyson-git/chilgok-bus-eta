@@ -152,6 +152,8 @@ function trackingUsable(res, dirCfg) {
 // - TAGO 시간이 없는 버스: 같은 노선 번호, 남은 정류장 수 차이 2 이내 중 가장 가까운 줄의 분(출처 표시).
 // - 885 왕복(arriving): 같은 노선의 왕복 줄 시간(학명리 건너2 지나는 시간). 두 시스템의 종점까지 정류장 수가 달라 8 까지 본다.
 // - 짝이 없는 줄: 같은 노선 TAGO 줄이 가까이(3정류장, 왕복은 8) 없으면 새 줄로 더한다(TAGO 가 그 노선을 안 주거나 위치를 못 받았을 때).
+// - 급행9-3 시간표 기준(sched, bis.js applyScheduleFloor): 시간표보다 이르면 정류장에서 기다리는 버스라 TAGO 시간이 있어도
+//   더 늦은 시간표 값으로 바꾼다(2026-10-25 실측, 사용자 승인).
 // 붙인 뒤 가까운 버스부터 다시 정렬한다(왕복 줄은 맨 뒤).
 function bisNo(no) { return String(no).replace(/^급행/, ""); }
 function bisSource(r) { return String(r.station_id || "").indexOf("dgb:") === 0 ? "대구 버스정보시스템" : "칠곡군 버스정보시스템"; }
@@ -169,11 +171,18 @@ function fillFromBis(buses, bisRows) {
     return best < 0 ? null : bisRows[best];
   }
   buses.forEach(function (b) {
+    if (!validEta(b.eta_min) || !hasAway(b) || b.arriving) return;
+    var s = closest(b, function (x) { return !x.turn && x.sched && x.minutes !== null && x.minutes > Number(b.eta_min); }, 2);
+    if (!s) return;
+    b.eta_min = s.minutes; b.eta_src = "bis"; b.bis_src = bisSource(s); b.sched = s.sched;
+  });
+  buses.forEach(function (b) {
     if (validEta(b.eta_min) || !hasAway(b)) return;
     var r = b.arriving ? closest(b, function (x) { return x.turn && x.minutes !== null; }, 8)
                        : closest(b, function (x) { return !x.turn && x.minutes !== null; }, 2);
     if (!r) return;
     b.eta_min = r.minutes; b.eta_src = "bis"; b.bis_src = bisSource(r);
+    if (r.sched) b.sched = r.sched;
     if (r.estimated) b.offset_min = r.offset_min;
     if (r.turn) b.pass_name = r.turn.pass;
   });
@@ -187,6 +196,7 @@ function fillFromBis(buses, bisRows) {
     var row = { routeno: r.route_no, routeid: "bis:" + r.route_id, vehicleno: null, nodenm: null, stops_away: hasAway(r) ? r.stops_away : null,
       stop_name: r.turn ? "" : (r.station_name || ""), eta_min: r.minutes, eta_src: "bis", bis_src: bisSource(r) };
     if (r.estimated) row.offset_min = r.offset_min;
+    if (r.sched) row.sched = r.sched;
     if (r.turn) { row.arriving = true; row.terminal = "동명"; row.pass_name = r.turn.pass; }
     buses.push(row);
   });
@@ -407,7 +417,8 @@ function renderTracking(dir, res) {
       var whenAttr = hasEnd ? ' role="timer" data-end="' + b.eta_end + '"' : "";
       var where = [b.nodenm ? "지금 " + b.nodenm : null, hasEta && hasAway ? formatAway(b.stops_away) : null,
         b.stop_name ? b.stop_name + "에서 타기" : null,
-        hasEta && b.eta_src === "bis" ? b.bis_src + " 시간" + (b.offset_min ? "(학명리 정류소 시간 −" + b.offset_min + "분)" : "") : null].filter(Boolean).map(esc).join(" · ");
+        hasEta && b.eta_src === "bis" && b.sched ? "시간표 기준(" + b.sched + ")" : null,
+        hasEta && b.eta_src === "bis" && !b.sched ? b.bis_src + " 시간" + (b.offset_min ? "(학명리 정류소 시간 −" + b.offset_min + "분)" : "") : null].filter(Boolean).map(esc).join(" · ");
       return '<div class="bus"><span>' + esc(b.routeno) + '번</span><span class="when"' + whenAttr + ">" + esc(big) + "</span></div>" +
         (where ? '<div class="where">' + where + "</div>" : "");
     }).join("");

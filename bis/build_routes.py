@@ -42,6 +42,26 @@ DAEGU_REF_NAMES = ["동명면행정복지센터", "동명교통", "동명면우�
 # 종점(동명)에서 바로 돌아 학명리 방향으로 가는 노선(사용자 확인 2026-10-24: "동명방향으로 885 도착해가면 그게 곧 학명리 방향 버스야").
 # 동명행으로 station 을 지나는 그 노선 버스를 학명리행 카드에도 "동명 N정류장 전"으로 보여준다(시간은 station 도착 값 그대로).
 TURNAROUND = [{"direction": "hakmyeong", "station": "2479", "route_id": "88510"}]
+# 시간표대로 다니는 급행9-3: 시간표보다 이르면 정류장에서 기다린다(2026-10-25 실측). 화면은 대구 시간이 시간표보다 이르면 시간표 시각을 쓴다.
+# timetable.json(사용자 제공 시간표)의 정류장 통과 시각 + 분 보정: 동명행 학명리 건너2 = 동명면우체국건너 -8분(4일 기록과 맞음),
+# 학명리행 = 타는 곳 동명면우체국 그대로.
+SCHEDULE_FLOOR = [{"direction": "dongmyeong", "route_no": "급행9-3", "stop": "동명면우체국건너", "shift_min": -8},
+                  {"direction": "hakmyeong", "route_no": "급행9-3", "stop": "동명면우체국", "shift_min": 0}]
+
+
+def schedule_floor(timetable):
+    """timetable.json -> [{direction, route_no, times}] (SCHEDULE_FLOOR 의 정류장 시각을 shift_min 만큼 옮김)."""
+    out = []
+    for f in SCHEDULE_FLOOR:
+        route = next(r for r in timetable["routes"] if r["routeno"] == f["route_no"])
+        st = next(s for s in route["stop_times"] if s["stop"] == f["stop"])
+        times = []
+        for hm in st["times"]:
+            h, m = map(int, hm.split(":"))
+            t = h * 60 + m + f["shift_min"]
+            times.append("%02d:%02d" % (t // 60, t % 60))
+        out.append({"direction": f["direction"], "route_no": f["route_no"], "times": times})
+    return out
 
 
 def gap_entry(stop_list, ref_ids, target_id):
@@ -144,7 +164,8 @@ def main():
         turnaround.append(dict(t, route_no=row["route_no"], extra_stops=found[0], terminal=found[1]))
         print("왕복 %s(%s): %s 지나서 %d정류장 뒤 종점 %s -> %s 카드에도" % (row["route_no"], t["route_id"], stops[t["station"]]["name"], found[0], found[1], t["direction"]))
     kst = timezone(timedelta(hours=9))
-    OUT.write_text(json.dumps({"generated": datetime.now(kst).isoformat(timespec="minutes"), "stops": out_stops, "turnaround": turnaround},
+    OUT.write_text(json.dumps({"generated": datetime.now(kst).isoformat(timespec="minutes"), "stops": out_stops, "turnaround": turnaround,
+                              "schedule_floor": schedule_floor(json.loads((OUT.parent.parent / "timetable.json").read_text(encoding="utf-8")))},
                               ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     for sid, s in out_stops.items():
         if s["route_ids"] is None:

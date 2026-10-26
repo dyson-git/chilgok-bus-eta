@@ -196,6 +196,18 @@ def test_routes_json_shows_the_885_heading_to_dongmyeong_in_the_hakmyeong_card()
     assert 1 <= t["extra_stops"] <= 15 and t["terminal"]
 
 
+def test_routes_json_has_the_9_3_timetable_floor_for_both_directions():
+    # 2026-10-25 실측: 급행9-3 은 시간표보다 이르면 정류장에서 기다린다(금화리건너 5분 정지). 대구 시스템 분은 그 대기를 빼고 계산해
+    # 15:31 "22분"(15:53) 이던 버스가 16:02 에 왔다. 사용자 승인: 대구 시간이 시간표보다 이르면 시간표 시각(시간표 기준)을 보여준다.
+    # 동명행 = 학명리 건너2 통과 = 사용자 시간표 동명면우체국건너 통과 -8분(4일 기록 07:52·10:03·12:02·14:01·16:01·18:04 와 맞음),
+    # 학명리행 = 동명면우체국 통과 시각 그대로(타는 곳).
+    cfg = json.loads((Path(__file__).resolve().parents[1] / "bis" / "routes.json").read_text(encoding="utf-8"))
+    floors = {f["direction"]: f for f in cfg["schedule_floor"]}
+    assert floors["dongmyeong"]["route_no"] == "급행9-3" and floors["hakmyeong"]["route_no"] == "급행9-3"
+    assert floors["dongmyeong"]["times"][:3] == ["07:52", "10:02", "12:02"] and len(floors["dongmyeong"]["times"]) == 8
+    assert floors["hakmyeong"]["times"][:2] == ["07:24", "09:24"] and len(floors["hakmyeong"]["times"]) == 8
+
+
 def test_first_app_loads_the_bis_module_before_app_js_to_fill_missing_times():
     html = (Path(__file__).resolve().parents[1] / "index.html").read_text(encoding="utf-8")
     assert '<script src="bis/bis.js"></script>' in html

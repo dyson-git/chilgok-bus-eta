@@ -125,10 +125,34 @@ function turnaroundRows(cfg, dir, popups) {
   return out;
 }
 
+// 시간표대로 다니는 노선(급행9-3): 시간표보다 이르면 정류장에서 기다린다(2026-10-25 실측 - 금화리건너 5분 정지,
+// 대구 "22분"(15:53)이던 버스가 16:02 에 옴). cfg.schedule_floor[] = {direction, route_no, times["HH:MM"]}.
+// 받은 도착 시각에서 가장 가까운 시간표 시각(40분 안)이 더 늦으면 그 시각을 쓰고 sched 에 적는다(사용자 승인, 화면에 "시간표 기준").
+// 늦게 오는 버스(시간표보다 늦음)는 받은 값 그대로. minutes 는 소수(도착 시각이 정확히 시간표 시각이 되게).
+var FLOOR_MATCH_MS = 40 * 60000;
+function applyScheduleFloor(cfg, dir, rows, now) {
+  var floors = ((cfg && cfg.schedule_floor) || []).filter(function (f) { return f.direction === dir; });
+  if (!floors.length) return rows;
+  return rows.map(function (r) {
+    var f = floors.filter(function (x) { return x.route_no === r.route_no; })[0];
+    if (!f || r.minutes === null || r.minutes === undefined) return r;
+    var eta = now + r.minutes * 60000, best = null;
+    f.times.forEach(function (hm) {
+      var d = new Date(now), p = hm.split(":");
+      d.setHours(Number(p[0]), Number(p[1]), 0, 0);
+      var t = d.getTime();
+      if (Math.abs(t - eta) <= FLOOR_MATCH_MS && (best === null || Math.abs(t - eta) < Math.abs(best.t - eta))) best = { t: t, hm: hm };
+    });
+    if (!best || best.t <= eta) return r;
+    return Object.assign({}, r, { minutes: (best.t - now) / 60000, sched: best.hm });
+  });
+}
+
 // 한 방향 화면 줄(기억 적용 전): 그 방향 정류장들의 줄 + 반대 방향에서 돌아 나올 왕복 노선 줄. 기존 앱(app.js)도 쓴다.
-function directionRows(cfg, dir, popups) {
+function directionRows(cfg, dir, popups, now) {
   var sids = Object.keys(cfg.stops).filter(function (sid) { return cfg.stops[sid].direction === dir; });
-  return buildRows(cfg, sids, popups).concat(turnaroundRows(cfg, dir, popups));
+  var rows = buildRows(cfg, sids, popups).concat(turnaroundRows(cfg, dir, popups));
+  return applyScheduleFloor(cfg, dir, rows, now === undefined ? Date.now() : now);
 }
 
 // 정류장 하나 받기 -> 파싱한 줄들 | null(못 받음). 칠곡 정류장은 중계 /bis(HTML), 대구 정류장("dgb:<번호>")은 /dgb(JSON).
@@ -157,7 +181,7 @@ function applyAnchors(rows, memo, dirKey, now) {
     var key = dirKey + ":" + r.route_id;
     seen[key] = true;
     var info = { route_id: r.route_id, route_no: r.route_no, ends: r.ends, station_name: r.station_name, stops_away: r.stops_away,
-      estimated: !!r.estimated, offset_min: r.offset_min || null, turn: r.turn || null };
+      estimated: !!r.estimated, offset_min: r.offset_min || null, turn: r.turn || null, sched: r.sched || null };
     var m = memo[key];
     if (r.minutes === null) {
       // 버스는 보이는데 이번엔 분이 안 왔다(대구 시스템은 가까워지면 분 대신 다른 문구를 준다): 앞서 받은 도착 시각을 이어서 쓴다
@@ -220,7 +244,8 @@ function renderCard(dir, rows, status, now) {
       var where = [hasEnd && hasAway ? formatAway(b.stops_away) : null,
         b.station_name ? b.station_name + "에서 타기" : null,
         b.route_no === "칠곡3" && b.ends ? b.ends : null,
-        b.estimated ? "학명리 정류소 시간 −" + b.offset_min + "분" : null,
+        b.estimated && !b.sched ? "학명리 정류소 시간 −" + b.offset_min + "분" : null,
+        b.sched ? "시간표 기준(" + b.sched + ")" : null,
         b.carried ? clockHM(b.lastAt) + " 기준" : null].filter(Boolean).map(esc).join(" · ");
       return '<div class="bus"><span>' + esc(b.route_no) + '번</span><span class="when"' + attr + ">" + esc(big) + "</span></div>" +
         (where ? '<div class="where">' + where + "</div>" : "");
@@ -309,7 +334,7 @@ if (!window.BIS_NO_INIT && document.body && document.body.getAttribute("data-app
         var now = Date.now();
         DIRS.forEach(function (d) {
           var sids = ids.filter(function (sid) { return state.cfg.stops[sid].direction === d; });
-          state.rows[d] = applyAnchors(directionRows(state.cfg, d, popups), state.memo, d, now);
+          state.rows[d] = applyAnchors(directionRows(state.cfg, d, popups, now), state.memo, d, now);
           state.status[d] = { failed: sids.filter(function (sid) { return !popups[sid]; }).length, total: sids.length };
         });
         try { localStorage.setItem("bisEtaMemo", JSON.stringify(state.memo)); } catch (e) { /* 저장 못 해도 동작은 한다 */ }

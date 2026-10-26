@@ -306,6 +306,15 @@ window.onerror = function (m, s, l) { document.getElementById("out").textContent
   fillFromBis(tn, [turnRow()]);
   eq("TAGO 위치를 못 받았어도 버스정보시스템의 885 는 '동명 N정류장 전'으로 보인다",
      tn.map(function (b) { return [b.arriving, b.terminal, b.stops_away, b.eta_min, b.pass_name]; }), [[true, "동명", 53, 60, "학명리 건너2"]]);
+  // 급행9-3 시간표 기준(2026-10-25): 버스정보시스템 줄에 sched 가 있으면(시간표가 더 늦다) TAGO 시간보다 그 값을 쓰고 표시한다
+  var ts = [{ routeno: "급행9-3", routeid: "DGB1000009300", vehicleno: "V9", nodenm: "병수리", stops_away: 13, stop_name: "", eta_min: 22 }];
+  fillFromBis(ts, [{ route_id: "dgb:1000009300", route_no: "급행9-3", station_id: "dgb:7181001900", station_name: "학명리 건너2", stops_away: 13, minutes: 31, sched: "16:02" }]);
+  eq("TAGO 22분이어도 시간표 기준 31분(16:02)으로 바꾸고 출처·시각을 남긴다", [ts[0].eta_min, ts[0].eta_src, ts[0].sched, ts.length], [31, "bis", "16:02", 1]);
+  var tsHtml = renderCard("dongmyeong", { buses: ts, errors: 0 });
+  eq("카드에 '시간표 기준(16:02)'", tsHtml.indexOf("시간표 기준(16:02)") >= 0, true);
+  var tq = [{ routeno: "급행9-3", routeid: "DGB1000009300", vehicleno: "V9", nodenm: "x", stops_away: 3, stop_name: "", eta_min: 6 }];
+  fillFromBis(tq, [{ route_id: "dgb:1000009300", route_no: "급행9-3", station_id: "dgb:7181001900", stops_away: 3, minutes: 5 }]);
+  eq("시간표 기준이 아닌 줄은 TAGO 시간을 그대로 둔다", [tq[0].eta_min, tq[0].eta_src || null], [6, null]);
   var now0 = Date.now();
   applyCountdown(ta, {}, "hakmyeong", now0, 50000);
   eq("버스정보시스템 시간에는 중계 캐시 나이를 빼지 않는다(그 캐시와 무관)", ta[0].eta_end, now0 + 3600000);
