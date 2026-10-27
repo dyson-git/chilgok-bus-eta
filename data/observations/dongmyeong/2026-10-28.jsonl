@@ -1,0 +1,4 @@
+{"polled_at": "2026-10-28T06:00:51+09:00", "observations": [], "errors": [{"city_code": "37100", "node_id": "GYB369001900", "error": "unknown"}, {"city_code": "22", "node_id": "DGB7181001900", "error": "unknown"}]}
+{"polled_at": "2026-10-28T06:05:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T06:10:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T06:15:51+09:00", "observations": [], "errors": []}
