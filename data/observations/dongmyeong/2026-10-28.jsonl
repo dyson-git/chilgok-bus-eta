@@ -80,3 +80,25 @@
 {"polled_at": "2026-10-28T12:35:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 28.366666666666667, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
 {"polled_at": "2026-10-28T12:40:52+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 25.533333333333335, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
 {"polled_at": "2026-10-28T12:45:51+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 19.15, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T12:50:52+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 15.183333333333334, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T12:55:52+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 9.2, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T13:00:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T13:05:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T13:10:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T13:15:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T13:20:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T13:25:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T13:30:51+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T13:35:51+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 27.566666666666666, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T13:40:51+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 49.6, "city_code": "37390", "node_id": "CGB2479", "toward": true}, {"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 21.883333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T13:45:52+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 44.516666666666666, "city_code": "37390", "node_id": "CGB2479", "toward": true}, {"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 18.016666666666666, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T13:50:52+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 32.733333333333334, "city_code": "37390", "node_id": "CGB2479", "toward": true}, {"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 13.066666666666666, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T13:55:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 27.266666666666666, "city_code": "37390", "node_id": "CGB2479", "toward": true}, {"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 9.616666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T14:00:32+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 22.083333333333332, "city_code": "37390", "node_id": "CGB2479", "toward": true}, {"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 3.2, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T14:05:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 16.216666666666665, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T14:10:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 10.2, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-28T14:15:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T14:20:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T14:25:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T14:30:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-28T14:35:31+09:00", "observations": [], "errors": []}
