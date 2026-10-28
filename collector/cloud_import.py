@@ -105,10 +105,30 @@ def hours_to_fetch(last: datetime | None, now_kst: datetime) -> list[str]:
     return out
 
 
-def fetch_hours(hours: list[str]) -> list:
+def import_tracks(tracks, data_dir) -> int:
+    """대구 BIS 따라가기(worker /trk, 2026-10-28)를 data/track/<한국 날짜>.jsonl 에 붙인다. 이미 있는 started 는 건너뛴다.
+    KV 에는 7일만 남으므로, 예상 시각과 실제 지나간 시각 비교를 나중에도 할 수 있게 그대로 옮겨 둔다."""
+    out_dir = Path(data_dir) / "track"
+    added = 0
+    for rec in sorted(tracks, key=lambda r: r["started"]):
+        day = datetime.fromisoformat(rec["started"].replace("Z", "+00:00")).astimezone(KST).date().isoformat()
+        path = out_dir / f"{day}.jsonl"
+        have = set()
+        if path.exists():
+            have = {json.loads(l)["started"] for l in path.read_text(encoding="utf-8").splitlines() if l.strip()}
+        if rec["started"] in have:
+            continue
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        added += 1
+    return added
+
+
+def fetch_hours(hours: list[str], path: str = "/obs") -> list:
     snaps = []
     for hour in hours:
-        r = requests.get(RELAY_URL + "/obs", params={"hour": hour}, timeout=30, headers={"User-Agent": "chilgok-bus-eta-import"})
+        r = requests.get(RELAY_URL + path, params={"hour": hour}, timeout=30, headers={"User-Agent": "chilgok-bus-eta-import"})
         r.raise_for_status()
         snaps += r.json()
     return snaps
@@ -120,6 +140,8 @@ def main() -> int:
     snaps = fetch_hours(hours)
     n = import_snapshots(snaps, data_dir, DIRECTIONS)
     print(f"{hours[0] if hours else '-'} ~ {hours[-1] if hours else '-'} ({len(hours)}시간) 스냅숏 {len(snaps)}개 중 {n}개 기록")
+    t = import_tracks(fetch_hours(hours, "/trk"), data_dir)
+    print(f"대구 BIS 따라가기 {t}개 기록")
     return 0
 
 

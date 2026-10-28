@@ -6,7 +6,7 @@ import re
 from datetime import date
 from pathlib import Path
 
-from collector.cloud_import import import_snapshots, records_from_snapshot
+from collector.cloud_import import import_snapshots, import_tracks, records_from_snapshot
 from collector.config import DIRECTIONS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,6 +75,23 @@ def test_import_appends_only_snapshots_newer_than_what_is_already_recorded_and_r
     arrivals = json.loads((data / "arrivals.json").read_text(encoding="utf-8"))
     assert arrivals["dongmyeong"]["2026-10-24"][0]["routeno"] == "300"   # 시간표도 다시 만든다
     assert import_snapshots(snaps, data, DIRECTIONS) == 0                 # 다시 돌려도 중복 없음
+
+
+def _track(started):
+    return {"started": started, "samples": [{"t": started, "stops": {"7181001900": {"ok": True, "items": [
+        {"route": "칠곡3", "vhc": "2673", "gap": 19, "bs": "바지미마을입구", "state": "25분"}]}}}]}
+
+
+def test_tracks_are_kept_per_korean_day_without_duplicates(tmp_path):
+    """Worker 의 대구 BIS 따라가기(/trk)는 KV 에 7일만 남는다 - data/track/<한국 날짜>.jsonl 에 그대로 옮겨 둔다."""
+    a, b, c = _track("2026-10-28T05:02:18.035Z"), _track("2026-10-28T14:57:00.000Z"), _track("2026-10-28T15:02:00.000Z")
+    assert import_tracks([b, a], tmp_path) == 2
+    assert import_tracks([a, b, c], tmp_path) == 1                       # 이미 있는 건 건너뛴다
+    day1 = [json.loads(l) for l in (tmp_path / "track" / "2026-10-28.jsonl").read_text(encoding="utf-8").splitlines()]
+    day2 = [json.loads(l) for l in (tmp_path / "track" / "2026-10-29.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert [r["started"] for r in day1] == [a["started"], b["started"]]  # 23:57 KST 까지는 그날
+    assert [r["started"] for r in day2] == [c["started"]]                # 00:02 KST 는 다음 날
+    assert day1[0] == a
 
 
 def test_relay_collects_every_five_minutes_into_kv_and_serves_it_by_hour():
