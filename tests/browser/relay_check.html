@@ -83,6 +83,41 @@ window.onerror = function (m, s, l) { document.getElementById("out").textContent
   window.fetch = realFetch;
   eq("남은 시간이 1초가 안 되면 기다리지 않고 23 오류로 끝낸다", [late, realNow() - t0 < 400], ["TAGO 23", true]);
 
+  // 대구 BIS 따라가기: 칠곡3·급행9-3 만 남기고, 1분 간격 5번을 KV 키 하나("trk:")로 쓴다
+  eq("대구 응답 해석: 칠곡3·급행9-3 만, 차량번호 없으면 null", dgbItems({ body: { list: [
+      { routeNo: "칠곡3", vhcNo2: "2673", bsGap: 7, bsNm: "동명교통", arrState: "8분" },
+      { routeNo: "300", vhcNo2: "1", bsGap: 1, bsNm: "x", arrState: "1분" },
+      { routeNo: "급행9-3", bsGap: -2, bsNm: "", arrState: "14:55 기점출발예정" }] } }),
+    [{ route: "칠곡3", vhc: "2673", gap: 7, bs: "동명교통", state: "8분" }, { route: "급행9-3", vhc: null, gap: -2, bs: "", state: "14:55 기점출발예정" }]);
+  var tkv = fakeKV(), clock = Date.parse("2026-10-27T06:02:00Z"), waits = [], urls = [];
+  window.fetch = async function (u) {
+    urls.push(String(u));
+    if (String(u).indexOf("3690003090") >= 0) throw new Error("timeout");
+    return { json: async function () { return { body: { list: [{ routeNo: "칠곡3", vhcNo2: "2618", bsGap: 3, bsNm: "a", arrState: "전전" }] } }; } };
+  };
+  Date.now = function () { return clock; };
+  await trackDgb({ OBS: tkv }, async function (ms) { waits.push(ms); clock += ms; });
+  Date.now = function () { return Date.parse("2026-10-27T13:07:00Z"); };   // 22:07 KST - 수집 시간 밖
+  await trackDgb({ OBS: tkv }, async function () {});
+  window.fetch = realFetch; Date.now = realNow;
+  var tk = Object.keys(tkv.store), trk = tk.length ? JSON.parse(tkv.store[tk[0]].v) : {};
+  eq("따라가기: 수집 시간 안에서만, 1분 간격 5번을 한 키로(7일 뒤 삭제)",
+     [tk, waits, urls.length, trk.started, (trk.samples || []).map(function (s) { return s.t.slice(11, 16); }), tk.length ? tkv.store[tk[0]].o : null],
+     [["trk:2026-10-27T15:02"], [60000, 60000, 60000, 60000], 15, "2026-10-27T06:02:00.000Z", ["06:02", "06:03", "06:04", "06:05", "06:06"], { expirationTtl: 604800 }]);
+  eq("정류장 하나가 실패해도 나머지는 남긴다", [trk.samples[0].stops["7181001900"], trk.samples[0].stops["3690003090"]],
+     [{ ok: true, items: [{ route: "칠곡3", vhc: "2618", gap: 3, bs: "a", state: "전전" }] }, { ok: false, error: "timeout" }]);
+  var tres = await R.fetch(new Request("https://x/trk?hour=2026-10-27T15"), { OBS: tkv }, {});
+  var tbody = await tres.json();
+  eq("/trk?hour= 는 따라가기 기록만 준다(/obs 와 안 섞인다)", [tres.status, tbody.length, tbody[0].started], [200, 1, "2026-10-27T06:02:00.000Z"]);
+  var which = [];
+  var ctx2 = { waitUntil: function (p) { which.push(p); } };
+  var tkv2 = fakeKV();
+  Date.now = function () { return Date.parse("2026-10-27T13:30:00Z"); };   // 수집 시간 밖이라 둘 다 바로 끝난다
+  await R.scheduled({ cron: "2-59/5 * * * *" }, { OBS: tkv2 }, ctx2);
+  await R.scheduled({ cron: "*/5 * * * *" }, { OBS: tkv2 }, ctx2);
+  Date.now = realNow;
+  eq("따라가기 크론은 TAGO 키 없이도 돈다, TAGO 수집은 키가 있어야", which.length, 1);
+
   out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
   document.getElementById("out").textContent = out.join("\n");
 })().catch(function (e) { document.getElementById("out").textContent = "ERROR " + e; });

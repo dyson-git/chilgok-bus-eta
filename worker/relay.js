@@ -8,7 +8,9 @@
 //   GET /bis?stop=2479                      → 칠곡 BIS 정류장 도착정보 HTML (비교용)
 //   GET /dgb?bs=7181001900                  → 대구 BIS 정류장 도착정보 JSON (칠곡3·급행9-3)
 //   GET /obs?hour=2026-10-24T16             → 그 한 시간(한국 시각) 동안 5분마다 쌓은 도착정보 [{fetched_at, results}]
+//   GET /trk?hour=2026-10-27T15             → 그 한 시간 동안 대구 BIS 를 1분마다 따라간 칠곡3·급행9-3 [{started, samples}]
 //   (Cron Trigger "*/5 * * * *")            → 수집 시간(한국 06:00~22:00)에 전 정류소 도착정보를 KV(바인딩 OBS)에 쌓는다
+//   (Cron Trigger "2-59/5 * * * *")         → 같은 시간에 대구 BIS 정류장을 1분마다 5번 묻고 KV 키 하나로 쌓는다(따라가기)
 
 const ALLOWED_ORIGINS = [
   "https://dyson-git.github.io",
@@ -177,9 +179,59 @@ async function collectSnapshot(env) {
     JSON.stringify({ fetched_at: new Date(started).toISOString(), results: compact }), { expirationTtl: OBS_TTL_S });
 }
 
+// ---- 대구 BIS 따라가기 (2026-10-27): 예상 시각과 실제 지나간 시각을 PC 없이 비교하려고 ----
+// 대구 "N분"은 정류장에서 시간 맞추려 서 있는 걸 모른다(급행9-3 금화리건너, 칠곡3 동명교통). 1분 간격이어야 지나간 때가 보인다.
+// TAGO 수집과 다른 크론으로 돌린다: 한 번 실행에 외부 호출 50개 한도를 TAGO(16곳 x 최대 3번)와 나눠 쓰지 않게.
+// KV 쓰기는 5분에 한 번(1분마다 쓰면 무료 한도 하루 1000번을 넘는다).
+const TRACK_CRON = "2-59/5 * * * *";
+const TRACK_ROUTES = new Set(["칠곡3", "급행9-3"]);
+const TRACK_SAMPLES = 5, TRACK_STEP_MS = 60000;
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 대구 응답 -> 칠곡3·급행9-3 만 [{route, vhc, gap, bs, state}]. vhcNo2 는 가끔 없다.
+function dgbItems(body) {
+  const list = (body && body.body && body.body.list) || [];
+  return list.filter((x) => TRACK_ROUTES.has(x.routeNo))
+    .map((x) => ({ route: x.routeNo, vhc: x.vhcNo2 || null, gap: x.bsGap, bs: x.bsNm, state: x.arrState }));
+}
+
+async function sampleDgb() {
+  const stops = {};
+  await Promise.all([...ALLOWED_DGB_STOPS].map(async (bs) => {
+    try {
+      const r = await fetch("https://businfo.daegu.go.kr:8095/dbms_web_api/realtime/arr/" + bs,
+        { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS) });
+      stops[bs] = { ok: true, items: dgbItems(await r.json()) };
+    } catch (e) {
+      stops[bs] = { ok: false, error: String((e && e.message) || e) };
+    }
+  }));
+  return stops;
+}
+
+async function trackDgb(env, sleep = sleepMs) {
+  const started = Date.now(), clock = kstClock(started);
+  if (clock.dayMin < WINDOW_START_MIN || clock.dayMin > WINDOW_END_MIN) return;
+  const samples = [];
+  for (let i = 0; i < TRACK_SAMPLES; i++) {
+    if (i) await sleep(started + i * TRACK_STEP_MS - Date.now());
+    samples.push({ t: new Date(Date.now()).toISOString(), stops: await sampleDgb() });
+  }
+  await env.OBS.put("trk:" + clock.hour + ":" + clock.minute,
+    JSON.stringify({ started: new Date(started).toISOString(), samples }), { expirationTtl: OBS_TTL_S });
+}
+
+async function listHour(env, prefix, hour) {
+  const listed = await env.OBS.list({ prefix: prefix + hour + ":" });
+  const values = await Promise.all(listed.keys.map((k) => env.OBS.get(k.name, "json")));
+  return values.filter(Boolean);
+}
+
 export default {
   async scheduled(event, env, ctx) {
-    if (!env.OBS || !env.TAGO_SERVICE_KEY) return;
+    if (!env.OBS) return;
+    if (event.cron === TRACK_CRON) { ctx.waitUntil(trackDgb(env)); return; }
+    if (!env.TAGO_SERVICE_KEY) return;
     ctx.waitUntil(collectSnapshot(env));
   },
 
@@ -247,13 +299,12 @@ export default {
       });
     }
 
-    if (url.pathname === "/obs") {
+    if (url.pathname === "/obs" || url.pathname === "/trk") {
       const hour = url.searchParams.get("hour") || "";
       if (!/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(hour)) return new Response("bad hour", { status: 400, headers });
       if (!env.OBS) return new Response("OBS not bound", { status: 503, headers });
-      const listed = await env.OBS.list({ prefix: "obs:" + hour + ":" });
-      const values = await Promise.all(listed.keys.map((k) => env.OBS.get(k.name, "json")));
-      return new Response(JSON.stringify(values.filter(Boolean)), {
+      const values = await listHour(env, url.pathname.slice(1) + ":", hour);
+      return new Response(JSON.stringify(values), {
         status: 200,
         headers: { ...headers, "Content-Type": "application/json; charset=utf-8" },
       });
