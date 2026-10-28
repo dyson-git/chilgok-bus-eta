@@ -75,10 +75,10 @@
     {
       "routeno": "칠곡3",
       "slot_index": 5,
-      "min_time": "15:05",
+      "min_time": "15:01",
       "max_time": "15:11",
-      "avg_time": "15:07",
-      "sample_count": 6
+      "avg_time": "15:06",
+      "sample_count": 7
     },
     {
       "routeno": "급행9-3",
@@ -246,9 +246,9 @@
       "routeno": "칠곡3",
       "slot_index": 5,
       "min_time": "14:58",
-      "max_time": "15:04",
-      "avg_time": "15:02",
-      "sample_count": 4
+      "max_time": "15:05",
+      "avg_time": "15:03",
+      "sample_count": 5
     },
     {
       "routeno": "급행9-3",
