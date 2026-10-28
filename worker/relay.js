@@ -186,6 +186,7 @@ async function collectSnapshot(env) {
 const TRACK_CRON = "2-59/5 * * * *";
 const TRACK_ROUTES = new Set(["칠곡3", "급행9-3"]);
 const TRACK_SAMPLES = 5, TRACK_STEP_MS = 60000;
+const DGB_TIMEOUT_MS = 8000; // 대구 서버는 Cloudflare 에서 가끔 3.5초를 넘긴다(10/28 14:02 첫 회 3곳 x 5번 전부 시간 초과)
 const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 대구 응답 -> 칠곡3·급행9-3 만 [{route, vhc, gap, bs, state}]. vhcNo2 는 가끔 없다.
@@ -200,7 +201,7 @@ async function sampleDgb() {
   await Promise.all([...ALLOWED_DGB_STOPS].map(async (bs) => {
     try {
       const r = await fetch("https://businfo.daegu.go.kr:8095/dbms_web_api/realtime/arr/" + bs,
-        { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS) });
+        { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(DGB_TIMEOUT_MS) });
       stops[bs] = { ok: true, items: dgbItems(await r.json()) };
     } catch (e) {
       stops[bs] = { ok: false, error: String((e && e.message) || e) };
