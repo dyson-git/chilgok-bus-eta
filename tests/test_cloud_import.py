@@ -6,7 +6,7 @@ import re
 from datetime import date
 from pathlib import Path
 
-from collector.cloud_import import import_snapshots, import_tracks, records_from_snapshot
+from collector.cloud_import import import_snapshots, import_tracks, last_track, records_from_snapshot
 from collector.config import DIRECTIONS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,6 +92,8 @@ def test_tracks_are_kept_per_korean_day_without_duplicates(tmp_path):
     assert [r["started"] for r in day1] == [a["started"], b["started"]]  # 23:57 KST 까지는 그날
     assert [r["started"] for r in day2] == [c["started"]]                # 00:02 KST 는 다음 날
     assert day1[0] == a
+    assert last_track(tmp_path).isoformat() == "2026-10-29T00:02:00+09:00"  # 따라가기는 자기 마지막 기록부터 다시 가져온다
+    assert last_track(tmp_path / "none") is None
 
 
 def test_relay_collects_every_five_minutes_into_kv_and_serves_it_by_hour():

@@ -125,6 +125,15 @@ def import_tracks(tracks, data_dir) -> int:
     return added
 
 
+def last_track(data_dir) -> datetime | None:
+    """data/track 의 가장 늦은 started(한국 시각). TAGO 기록과 따로 센다 - 따라가기는 늦게 시작해 빠진 시간이 있을 수 있다."""
+    files = sorted((Path(data_dir) / "track").glob("*.jsonl"))
+    if not files:
+        return None
+    lines = [l for l in files[-1].read_text(encoding="utf-8").splitlines() if l.strip()]
+    return max(datetime.fromisoformat(json.loads(l)["started"].replace("Z", "+00:00")).astimezone(KST) for l in lines) if lines else None
+
+
 def fetch_hours(hours: list[str], path: str = "/obs") -> list:
     snaps = []
     for hour in hours:
@@ -140,7 +149,7 @@ def main() -> int:
     snaps = fetch_hours(hours)
     n = import_snapshots(snaps, data_dir, DIRECTIONS)
     print(f"{hours[0] if hours else '-'} ~ {hours[-1] if hours else '-'} ({len(hours)}시간) 스냅숏 {len(snaps)}개 중 {n}개 기록")
-    t = import_tracks(fetch_hours(hours, "/trk"), data_dir)
+    t = import_tracks(fetch_hours(hours_to_fetch(last_track(data_dir), datetime.now(KST)), "/trk"), data_dir)
     print(f"대구 BIS 따라가기 {t}개 기록")
     return 0
 
