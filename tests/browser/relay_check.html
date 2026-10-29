@@ -118,6 +118,22 @@ window.onerror = function (m, s, l) { document.getElementById("out").textContent
   Date.now = realNow;
   eq("따라가기 크론은 TAGO 키 없이도 돈다, TAGO 수집은 키가 있어야", which.length, 1);
 
+  // 매시 10분(06~22시)에 GITHUB_TOKEN 이 있을 때만 import 작업을 시작시킨다
+  async function dispatchAt(iso, env) {
+    var calls = [], f0 = window.fetch;
+    window.fetch = async function (u, o) { calls.push([String(u), o && o.method, o && JSON.parse(o.body).ref]); return { status: 204, json: async function () { return {}; } }; };
+    var ps = [];
+    try { await R.scheduled({ cron: "*/5 21-23,0-13 * * *", scheduledTime: Date.parse(iso) }, env, { waitUntil: function (p) { ps.push(p); } }); await Promise.all(ps); }
+    finally { window.fetch = f0; }
+    return calls.filter(function (c) { return c[0].indexOf("api.github.com") >= 0; });
+  }
+  var envG = { OBS: fakeKV(), GITHUB_TOKEN: "t" };
+  var d10 = await dispatchAt("2026-10-29T05:10:00Z", envG), d15 = await dispatchAt("2026-10-29T05:15:00Z", envG),
+      dNight = await dispatchAt("2026-10-29T14:10:00Z", envG), dNoTok = await dispatchAt("2026-10-29T05:10:00Z", { OBS: fakeKV() });
+  eq("import 시작: 14:10 에 main 으로 한 번, 14:15·23:10·토큰 없음은 안 함",
+     [d10, d15.length, dNight.length, dNoTok.length],
+     [[["https://api.github.com/repos/dyson-git/chilgok-bus-eta/actions/workflows/import.yml/dispatches", "POST", "main"]], 0, 0, 0]);
+
   out.push(fails ? "=== " + fails + " FAILED" : "=== ALL PASSED");
   document.getElementById("out").textContent = out.join("\n");
 })().catch(function (e) { document.getElementById("out").textContent = "ERROR " + e; });

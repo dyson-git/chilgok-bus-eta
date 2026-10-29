@@ -11,6 +11,7 @@
 //   GET /trk?hour=2026-10-27T15             → 그 한 시간 동안 대구 BIS 를 1분마다 따라간 칠곡3·급행9-3 [{started, samples}]
 //   (Cron Trigger "*/5 * * * *")            → 수집 시간(한국 06:00~22:00)에 전 정류소 도착정보를 KV(바인딩 OBS)에 쌓는다
 //   (Cron Trigger "2-59/5 * * * *")         → 같은 시간에 대구 BIS 정류장을 1분마다 5번 묻고 KV 키 하나로 쌓는다(따라가기)
+//   (위 "*/5" 크론의 매시 10분)              → 비밀값 GITHUB_TOKEN 이 있으면 GitHub import 작업을 시작시킨다(GitHub 예약 실행이 안 돌아서)
 
 const ALLOWED_ORIGINS = [
   "https://dyson-git.github.io",
@@ -222,6 +223,21 @@ async function trackDgb(env, sleep = sleepMs) {
     JSON.stringify({ started: new Date(started).toISOString(), samples }), { expirationTtl: OBS_TTL_S });
 }
 
+// ---- import 시작 (2026-10-29): GitHub 예약 실행(cron)이 이 저장소에서 한 번도 안 돌아 PC 작업이 대신 시작했다 - PC 없이 ----
+// GITHUB_TOKEN = 이 저장소 Actions 쓰기 권한만 있는 fine-grained 토큰(Worker 비밀값). 없으면 아무것도 안 한다.
+const IMPORT_DISPATCH_URL = "https://api.github.com/repos/dyson-git/chilgok-bus-eta/actions/workflows/import.yml/dispatches";
+const IMPORT_MINUTE = "10";
+
+async function triggerImport(env) {
+  const r = await fetch(IMPORT_DISPATCH_URL, {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + env.GITHUB_TOKEN, "Accept": "application/vnd.github+json",
+      "User-Agent": "chilgok-bus-relay", "Content-Type": "application/json" },
+    body: JSON.stringify({ ref: "main" }),
+  });
+  if (r.status !== 204) console.log("import dispatch " + r.status);
+}
+
 async function listHour(env, prefix, hour) {
   const listed = await env.OBS.list({ prefix: prefix + hour + ":" });
   const values = await Promise.all(listed.keys.map((k) => env.OBS.get(k.name, "json")));
@@ -232,6 +248,10 @@ export default {
   async scheduled(event, env, ctx) {
     if (!env.OBS) return;
     if (event.cron === TRACK_CRON) { ctx.waitUntil(trackDgb(env)); return; }
+    if (env.GITHUB_TOKEN) {
+      const clock = kstClock(event.scheduledTime || Date.now());
+      if (clock.minute === IMPORT_MINUTE && clock.dayMin >= WINDOW_START_MIN && clock.dayMin <= WINDOW_END_MIN) ctx.waitUntil(triggerImport(env));
+    }
     if (!env.TAGO_SERVICE_KEY) return;
     ctx.waitUntil(collectSnapshot(env));
   },
