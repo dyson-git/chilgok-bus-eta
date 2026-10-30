@@ -262,9 +262,9 @@
       "routeno": "급행9-3",
       "slot_index": 5,
       "min_time": "16:01",
-      "max_time": "16:05",
-      "avg_time": "16:02",
-      "sample_count": 6
+      "max_time": "16:08",
+      "avg_time": "16:03",
+      "sample_count": 7
     },
     {
       "routeno": "칠곡3",
