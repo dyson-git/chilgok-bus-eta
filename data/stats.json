@@ -25,6 +25,14 @@
       "sample_count": 8
     },
     {
+      "routeno": "300",
+      "slot_index": 1,
+      "min_time": "09:12",
+      "max_time": "09:12",
+      "avg_time": "09:12",
+      "sample_count": 1
+    },
+    {
       "routeno": "급행9-3",
       "slot_index": 2,
       "min_time": "09:24",
@@ -38,19 +46,19 @@
       "min_time": "09:50",
       "max_time": "09:56",
       "avg_time": "09:52",
-      "sample_count": 7
+      "sample_count": 8
     },
     {
       "routeno": "급행9-3",
       "slot_index": 3,
       "min_time": "11:23",
-      "max_time": "11:25",
-      "avg_time": "11:24",
-      "sample_count": 6
+      "max_time": "11:30",
+      "avg_time": "11:25",
+      "sample_count": 7
     },
     {
       "routeno": "300",
-      "slot_index": 1,
+      "slot_index": 2,
       "min_time": "12:21",
       "max_time": "12:21",
       "avg_time": "12:21",
@@ -90,7 +98,7 @@
     },
     {
       "routeno": "300",
-      "slot_index": 2,
+      "slot_index": 3,
       "min_time": "16:07",
       "max_time": "16:07",
       "avg_time": "16:07",
@@ -183,24 +191,24 @@
       "slot_index": 3,
       "min_time": "09:43",
       "max_time": "09:52",
-      "avg_time": "09:47",
-      "sample_count": 5
+      "avg_time": "09:48",
+      "sample_count": 6
     },
     {
       "routeno": "885",
       "slot_index": 2,
       "min_time": "09:53",
       "max_time": "10:03",
-      "avg_time": "09:58",
-      "sample_count": 3
+      "avg_time": "09:57",
+      "sample_count": 4
     },
     {
       "routeno": "급행9-3",
       "slot_index": 2,
       "min_time": "10:02",
       "max_time": "10:03",
-      "avg_time": "10:03",
-      "sample_count": 7
+      "avg_time": "10:02",
+      "sample_count": 8
     },
     {
       "routeno": "300",
@@ -215,16 +223,16 @@
       "slot_index": 4,
       "min_time": "10:59",
       "max_time": "11:09",
-      "avg_time": "11:04",
-      "sample_count": 4
+      "avg_time": "11:05",
+      "sample_count": 5
     },
     {
       "routeno": "급행9-3",
       "slot_index": 3,
       "min_time": "12:00",
-      "max_time": "12:03",
+      "max_time": "12:04",
       "avg_time": "12:02",
-      "sample_count": 7
+      "sample_count": 8
     },
     {
       "routeno": "885",
