@@ -97,3 +97,6 @@
 {"polled_at": "2026-10-31T14:00:31+09:00", "observations": [], "errors": [{"city_code": "37390", "node_id": "CGB2479", "error": "unknown"}, {"city_code": "37050", "node_id": "GMB2479", "error": "unknown"}, {"city_code": "37100", "node_id": "GYB369001900", "error": "unknown"}, {"city_code": "22", "node_id": "DGB7181001900", "error": "unknown"}]}
 {"polled_at": "2026-10-31T14:05:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 14.866666666666667, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
 {"polled_at": "2026-10-31T14:10:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 10.2, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-10-31T14:15:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-31T14:20:32+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-10-31T14:25:32+09:00", "observations": [], "errors": []}
