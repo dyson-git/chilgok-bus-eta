@@ -69,16 +69,16 @@
       "slot_index": 4,
       "min_time": "13:26",
       "max_time": "13:29",
-      "avg_time": "13:28",
-      "sample_count": 3
+      "avg_time": "13:27",
+      "sample_count": 4
     },
     {
       "routeno": "칠곡3",
       "slot_index": 4,
       "min_time": "13:45",
       "max_time": "13:51",
-      "avg_time": "13:47",
-      "sample_count": 9
+      "avg_time": "13:46",
+      "sample_count": 10
     },
     {
       "routeno": "칠곡3",
