@@ -1,45 +1,18 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-10-31T21:10:31+09:00",
+    "polled_at": "2026-10-31T21:55:32+09:00",
+    "observations": [],
+    "errors": []
+  },
+  "dongmyeong": {
+    "polled_at": "2026-10-31T21:55:32+09:00",
     "observations": [
       {
         "routeid": "DGB1000009300",
         "routeno": "급행9-3",
-        "eta_min": 17.416666666666668
+        "eta_min": 7.683333333333334
       }
     ],
-    "errors": [
-      {
-        "city_code": "22",
-        "node_id": "DGB3690005830",
-        "error": "unknown"
-      }
-    ]
-  },
-  "dongmyeong": {
-    "polled_at": "2026-10-31T21:10:31+09:00",
-    "observations": [],
-    "errors": [
-      {
-        "city_code": "37390",
-        "node_id": "CGB2479",
-        "error": "unknown"
-      },
-      {
-        "city_code": "37050",
-        "node_id": "GMB2479",
-        "error": "unknown"
-      },
-      {
-        "city_code": "37100",
-        "node_id": "GYB369001900",
-        "error": "unknown"
-      },
-      {
-        "city_code": "22",
-        "node_id": "DGB7181001900",
-        "error": "unknown"
-      }
-    ]
+    "errors": []
   }
 }
