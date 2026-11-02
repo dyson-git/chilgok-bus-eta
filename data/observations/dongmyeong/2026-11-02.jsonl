@@ -179,3 +179,14 @@
 {"polled_at": "2026-11-02T20:50:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-02T20:55:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-02T21:00:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-02T21:05:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-02T21:10:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 14.733333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-02T21:15:32+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 10.7, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-02T21:20:31+09:00", "observations": [], "errors": [{"city_code": "22", "node_id": "DGB7181001900", "error": "The operation was aborted due to timeout"}]}
+{"polled_at": "2026-11-02T21:25:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-02T21:30:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-02T21:35:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 28.533333333333335, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-02T21:40:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 23.133333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-02T21:45:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 17.2, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-02T21:50:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 13.966666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-02T21:55:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 8.383333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
