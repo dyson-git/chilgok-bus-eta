@@ -1,18 +1,79 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-11-02T21:55:31+09:00",
+    "polled_at": "2026-11-03T08:00:31+09:00",
     "observations": [],
-    "errors": []
+    "errors": [
+      {
+        "city_code": "37050",
+        "node_id": "GMB2142",
+        "error": "The operation was aborted due to timeout"
+      },
+      {
+        "city_code": "22",
+        "node_id": "DGB7181001000",
+        "error": "The operation was aborted due to timeout"
+      },
+      {
+        "city_code": "22",
+        "node_id": "DGB3690003750",
+        "error": "The operation was aborted due to timeout"
+      },
+      {
+        "city_code": "37390",
+        "node_id": "CGB4870",
+        "error": "The operation was aborted due to timeout"
+      },
+      {
+        "city_code": "37390",
+        "node_id": "CGB4871",
+        "error": "unknown"
+      },
+      {
+        "city_code": "37050",
+        "node_id": "GMB4871",
+        "error": "unknown"
+      },
+      {
+        "city_code": "37100",
+        "node_id": "GYB369007000",
+        "error": "unknown"
+      },
+      {
+        "city_code": "22",
+        "node_id": "DGB7181007000",
+        "error": "unknown"
+      },
+      {
+        "city_code": "22",
+        "node_id": "DGB3690005830",
+        "error": "unknown"
+      }
+    ]
   },
   "dongmyeong": {
-    "polled_at": "2026-11-02T21:55:31+09:00",
-    "observations": [
+    "polled_at": "2026-11-03T08:00:31+09:00",
+    "observations": [],
+    "errors": [
       {
-        "routeid": "DGB1000009300",
-        "routeno": "급행9-3",
-        "eta_min": 8.383333333333333
+        "city_code": "37390",
+        "node_id": "CGB2479",
+        "error": "unknown"
+      },
+      {
+        "city_code": "37050",
+        "node_id": "GMB2479",
+        "error": "unknown"
+      },
+      {
+        "city_code": "37100",
+        "node_id": "GYB369001900",
+        "error": "unknown"
+      },
+      {
+        "city_code": "22",
+        "node_id": "DGB7181001900",
+        "error": "unknown"
       }
-    ],
-    "errors": []
+    ]
   }
 }
