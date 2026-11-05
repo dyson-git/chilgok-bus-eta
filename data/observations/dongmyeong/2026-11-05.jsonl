@@ -181,3 +181,4 @@
 {"polled_at": "2026-11-05T21:00:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-05T21:05:32+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-05T21:10:31+09:00", "observations": [], "errors": [{"city_code": "37390", "node_id": "CGB2479", "error": "unknown"}, {"city_code": "37050", "node_id": "GMB2479", "error": "unknown"}, {"city_code": "37100", "node_id": "GYB369001900", "error": "unknown"}, {"city_code": "22", "node_id": "DGB7181001900", "error": "unknown"}]}
+{"polled_at": "2026-11-05T21:15:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 9.883333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
