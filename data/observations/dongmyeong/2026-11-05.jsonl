@@ -182,3 +182,11 @@
 {"polled_at": "2026-11-05T21:05:32+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-05T21:10:31+09:00", "observations": [], "errors": [{"city_code": "37390", "node_id": "CGB2479", "error": "unknown"}, {"city_code": "37050", "node_id": "GMB2479", "error": "unknown"}, {"city_code": "37100", "node_id": "GYB369001900", "error": "unknown"}, {"city_code": "22", "node_id": "DGB7181001900", "error": "unknown"}]}
 {"polled_at": "2026-11-05T21:15:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 9.883333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-05T21:20:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 4.483333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-05T21:25:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-05T21:30:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-05T21:35:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 27.333333333333332, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-05T21:40:32+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 23.333333333333332, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-05T21:45:32+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 16.916666666666668, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-05T21:50:32+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 13.516666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-05T21:55:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 7.85, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
