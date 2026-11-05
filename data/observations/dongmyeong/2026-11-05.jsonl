@@ -74,3 +74,5 @@
 {"polled_at": "2026-11-05T12:05:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-05T12:10:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-05T12:15:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-05T12:20:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-05T12:25:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 36.53333333333333, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
