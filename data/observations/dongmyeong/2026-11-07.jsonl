@@ -24,3 +24,15 @@
 {"polled_at": "2026-11-07T07:55:31+09:00", "observations": [{"routeid": "DGB4090003001", "routeno": "칠곡3", "eta_min": 1.5666666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
 {"polled_at": "2026-11-07T08:00:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-07T08:05:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:10:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:15:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:20:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:25:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:30:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:35:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:40:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:45:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:50:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T08:55:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T09:00:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-07T09:05:31+09:00", "observations": [], "errors": []}
