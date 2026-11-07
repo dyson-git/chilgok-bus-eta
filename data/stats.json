@@ -381,10 +381,10 @@
     {
       "routeno": "급행9-3",
       "slot_index": 8,
-      "min_time": "22:00",
+      "min_time": "21:59",
       "max_time": "22:00",
       "avg_time": "22:00",
-      "sample_count": 1
+      "sample_count": 2
     }
   ]
 }
