@@ -121,3 +121,14 @@
 {"polled_at": "2026-11-08T16:00:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 1.4333333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}, {"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 11.733333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
 {"polled_at": "2026-11-08T16:05:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 7.216666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
 {"polled_at": "2026-11-08T16:10:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 3.4166666666666665, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-08T16:15:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-08T16:20:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-08T16:25:32+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-08T16:30:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-08T16:35:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-08T16:40:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-08T16:45:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-08T16:50:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 41.68333333333333, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-08T16:55:32+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 39.0, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-08T17:00:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 34.03333333333333, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-08T17:05:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 27.116666666666667, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
