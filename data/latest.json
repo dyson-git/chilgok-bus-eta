@@ -1,18 +1,24 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-11-08T15:10:31+09:00",
+    "polled_at": "2026-11-08T16:05:31+09:00",
     "observations": [
       {
-        "routeid": "DGB1000009300",
-        "routeno": "급행9-3",
-        "eta_min": 19.05
+        "routeid": "CGB30020",
+        "routeno": "300",
+        "eta_min": 11.633333333333333
       }
     ],
     "errors": []
   },
   "dongmyeong": {
-    "polled_at": "2026-11-08T15:10:31+09:00",
-    "observations": [],
+    "polled_at": "2026-11-08T16:05:31+09:00",
+    "observations": [
+      {
+        "routeid": "DGB4090003011",
+        "routeno": "칠곡3",
+        "eta_min": 7.216666666666667
+      }
+    ],
     "errors": []
   }
 }
