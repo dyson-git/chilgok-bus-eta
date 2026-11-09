@@ -1,0 +1,2 @@
+{"polled_at": "2026-11-10T06:00:31+09:00", "observations": [], "errors": [{"city_code": "37050", "node_id": "GMB2479", "error": "The operation was aborted due to timeout"}, {"city_code": "22", "node_id": "DGB7181001900", "error": "The operation was aborted due to timeout"}]}
+{"polled_at": "2026-11-10T06:05:31+09:00", "observations": [], "errors": []}
