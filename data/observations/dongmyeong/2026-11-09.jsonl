@@ -180,3 +180,13 @@
 {"polled_at": "2026-11-09T20:55:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-09T21:00:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-09T21:05:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-09T21:10:32+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 14.066666666666666, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-09T21:15:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 8.3, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-09T21:20:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 3.3833333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-09T21:25:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-09T21:30:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-09T21:35:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 27.833333333333332, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-09T21:40:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 23.75, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-09T21:45:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 16.666666666666668, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-09T21:50:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 13.666666666666666, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-09T21:55:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 8.133333333333333, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
