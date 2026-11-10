@@ -317,10 +317,10 @@
     {
       "routeno": "칠곡3",
       "slot_index": 6,
-      "min_time": "16:11",
+      "min_time": "16:09",
       "max_time": "16:18",
       "avg_time": "16:13",
-      "sample_count": 14
+      "sample_count": 15
     },
     {
       "routeno": "885",
