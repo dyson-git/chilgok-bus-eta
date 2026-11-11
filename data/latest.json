@@ -1,35 +1,18 @@
 {
   "hakmyeong": {
-    "polled_at": "2026-11-11T16:05:31+09:00",
-    "observations": [
-      {
-        "routeid": "CGB30020",
-        "routeno": "300",
-        "eta_min": 7.633333333333334
-      }
-    ],
-    "errors": [
-      {
-        "city_code": "22",
-        "node_id": "DGB7181007000",
-        "error": "The operation was aborted due to timeout"
-      }
-    ]
+    "polled_at": "2026-11-11T17:05:31+09:00",
+    "observations": [],
+    "errors": []
   },
   "dongmyeong": {
-    "polled_at": "2026-11-11T16:05:31+09:00",
-    "observations": [],
-    "errors": [
+    "polled_at": "2026-11-11T17:05:31+09:00",
+    "observations": [
       {
-        "city_code": "37100",
-        "node_id": "GYB369001900",
-        "error": "The operation was aborted due to timeout"
-      },
-      {
-        "city_code": "22",
-        "node_id": "DGB7181001900",
-        "error": "The operation was aborted due to timeout"
+        "routeid": "GMB88510",
+        "routeno": "885",
+        "eta_min": 29.25
       }
-    ]
+    ],
+    "errors": []
   }
 }
