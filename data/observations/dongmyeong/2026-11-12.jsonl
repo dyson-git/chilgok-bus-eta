@@ -52,3 +52,11 @@
 {"polled_at": "2026-11-12T10:15:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-12T10:20:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 46.2, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
 {"polled_at": "2026-11-12T10:25:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 40.25, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-12T10:30:32+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 30.616666666666667, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-12T10:35:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 27.266666666666666, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-12T10:40:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 22.083333333333332, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-12T10:45:31+09:00", "observations": [{"routeid": "CGB30010", "routeno": "300", "eta_min": 7.266666666666667, "city_code": "37390", "node_id": "CGB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-12T10:50:31+09:00", "observations": [{"routeid": "DGB4090003001", "routeno": "칠곡3", "eta_min": 68.5, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-12T10:55:31+09:00", "observations": [], "errors": [{"city_code": "22", "node_id": "DGB7181001900", "error": "unknown"}]}
+{"polled_at": "2026-11-12T11:00:31+09:00", "observations": [{"routeid": "DGB4090003001", "routeno": "칠곡3", "eta_min": 6.416666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-12T11:05:31+09:00", "observations": [{"routeid": "DGB4090003001", "routeno": "칠곡3", "eta_min": 0.5833333333333334, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
