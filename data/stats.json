@@ -134,7 +134,7 @@
       "min_time": "18:55",
       "max_time": "19:10",
       "avg_time": "19:02",
-      "sample_count": 20
+      "sample_count": 21
     },
     {
       "routeno": "급행9-3",
@@ -142,7 +142,7 @@
       "min_time": "19:23",
       "max_time": "19:28",
       "avg_time": "19:25",
-      "sample_count": 8
+      "sample_count": 9
     },
     {
       "routeno": "300",
@@ -360,7 +360,7 @@
       "min_time": "19:59",
       "max_time": "20:08",
       "avg_time": "20:03",
-      "sample_count": 15
+      "sample_count": 16
     },
     {
       "routeno": "칠곡3",
