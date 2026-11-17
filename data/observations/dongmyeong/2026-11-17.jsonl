@@ -180,3 +180,13 @@
 {"polled_at": "2026-11-17T20:55:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-17T21:00:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-17T21:05:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-17T21:10:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 15.466666666666667, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-17T21:15:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 10.9, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-17T21:20:31+09:00", "observations": [{"routeid": "DGB4090003011", "routeno": "칠곡3", "eta_min": 4.6, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-17T21:25:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-17T21:30:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-17T21:35:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 27.283333333333335, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": [{"city_code": "37100", "node_id": "GYB369001900", "error": "The operation was aborted due to timeout"}]}
+{"polled_at": "2026-11-17T21:40:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 23.683333333333334, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-17T21:45:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 19.816666666666666, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-17T21:50:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 15.833333333333334, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
+{"polled_at": "2026-11-17T21:55:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 9.25, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
