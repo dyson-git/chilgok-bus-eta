@@ -102,7 +102,7 @@
       "min_time": "15:00",
       "max_time": "15:11",
       "avg_time": "15:06",
-      "sample_count": 27
+      "sample_count": 28
     },
     {
       "routeno": "급행9-3",
@@ -110,7 +110,7 @@
       "min_time": "15:23",
       "max_time": "15:30",
       "avg_time": "15:25",
-      "sample_count": 17
+      "sample_count": 18
     },
     {
       "routeno": "300",
