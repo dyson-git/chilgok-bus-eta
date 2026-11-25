@@ -269,10 +269,10 @@
     {
       "routeno": "급행9-3",
       "slot_index": 3,
-      "min_time": "12:00",
+      "min_time": "11:59",
       "max_time": "12:06",
       "avg_time": "12:03",
-      "sample_count": 22
+      "sample_count": 23
     },
     {
       "routeno": "885",
