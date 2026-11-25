@@ -72,3 +72,15 @@
 {"polled_at": "2026-11-25T11:55:31+09:00", "observations": [{"routeid": "DGB1000009300", "routeno": "급행9-3", "eta_min": 4.25, "city_code": "22", "node_id": "DGB7181001900", "toward": true}], "errors": []}
 {"polled_at": "2026-11-25T12:00:31+09:00", "observations": [], "errors": []}
 {"polled_at": "2026-11-25T12:05:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-25T12:10:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-25T12:15:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-25T12:20:32+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-25T12:25:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 40.766666666666666, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-25T12:30:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 38.25, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-25T12:35:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 31.366666666666667, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-25T12:40:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 25.533333333333335, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-25T12:45:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 19.15, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-25T12:50:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 13.75, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-25T12:55:31+09:00", "observations": [{"routeid": "GMB88510", "routeno": "885", "eta_min": 9.2, "city_code": "37050", "node_id": "GMB2479", "toward": true}], "errors": []}
+{"polled_at": "2026-11-25T13:00:31+09:00", "observations": [], "errors": []}
+{"polled_at": "2026-11-25T13:05:31+09:00", "observations": [], "errors": []}
