@@ -2264,6 +2264,11 @@
         "arrival_time": "2026-11-28T09:11:32+09:00",
         "routeid": "CGB30020",
         "routeno": "300"
+      },
+      {
+        "arrival_time": "2026-11-28T09:50:56+09:00",
+        "routeid": "DGB4090003001",
+        "routeno": "칠곡3"
       }
     ]
   },
@@ -4587,6 +4592,16 @@
         "arrival_time": "2026-11-28T07:58:46+09:00",
         "routeid": "DGB4090003001",
         "routeno": "칠곡3"
+      },
+      {
+        "arrival_time": "2026-11-28T09:53:49+09:00",
+        "routeid": "GMB88510",
+        "routeno": "885"
+      },
+      {
+        "arrival_time": "2026-11-28T10:02:16+09:00",
+        "routeid": "DGB1000009300",
+        "routeno": "급행9-3"
       }
     ]
   }
